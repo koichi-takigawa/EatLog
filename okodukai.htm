@@ -1,0 +1,532 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>お小遣い帳</title>
+    <!-- Chart.js ライブラリの読み込み -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        /* --- CSS --- */
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            margin: 0;
+            background-color: #f0f2f5;
+            color: #333;
+            padding-bottom: 50px; /* 下部の余白 */
+        }
+
+        /* グラフエリア（上部固定） */
+        .chart-section {
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            background-color: #fff;
+            padding: 10px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            text-align: center;
+        }
+
+        .chart-container {
+            position: relative;
+            height: 200px; /* グラフの高さ */
+            width: 100%;
+            max-width: 400px;
+            margin: 0 auto;
+        }
+
+        /* コンテナ */
+        .container {
+            max-width: 600px;
+            margin: auto;
+            padding: 15px;
+        }
+
+        h2 {
+            font-size: 1.2rem;
+            margin-bottom: 10px;
+            border-left: 4px solid #007bff;
+            padding-left: 8px;
+        }
+
+        /* 入力フォーム（縦一列） */
+        .input-form {
+            background: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+
+        .form-group {
+            margin-bottom: 15px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+            font-size: 0.9rem;
+            color: #555;
+        }
+
+        /* 入力要素のスタイル（スマホで押しやすく） */
+        input[type="date"],
+        input[type="number"],
+        input[type="text"],
+        select {
+            width: 100%;
+            padding: 12px;
+            font-size: 16px; /* ズーム防止 */
+            border: 1px solid #ccc;
+            border-radius: 6px;
+            box-sizing: border-box;
+            background-color: #fafafa;
+        }
+
+        /* ラジオボタンのスタイル調整 */
+        .type-selection {
+            display: flex;
+            gap: 20px;
+            padding: 5px 0;
+        }
+
+        .radio-label {
+            display: flex;
+            align-items: center;
+            font-size: 1rem;
+            cursor: pointer;
+        }
+
+        .radio-label input {
+            margin-right: 8px;
+            transform: scale(1.2);
+        }
+
+        /* 記録ボタン */
+        #submit-btn {
+            width: 100%;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 15px;
+            border-radius: 6px;
+            font-size: 18px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+
+        #submit-btn:active {
+            background-color: #0056b3;
+            transform: translateY(1px);
+        }
+
+        /* 履歴リスト */
+        .history-card {
+            background: #fff;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            margin-bottom: 10px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 15px;
+        }
+
+        .history-info {
+            flex-grow: 1;
+        }
+
+        .history-date {
+            font-size: 0.8rem;
+            color: #888;
+        }
+
+        .history-category {
+            font-weight: bold;
+            font-size: 1rem;
+            margin: 2px 0;
+        }
+        
+        .history-detail {
+            font-size: 0.85rem;
+            color: #666;
+            margin-top: 2px;
+        }
+
+        .history-amount {
+            font-size: 1.1rem;
+            font-weight: bold;
+        }
+
+        .amount-income { color: #28a745; }
+        .amount-expense { color: #dc3545; }
+
+        .delete-btn {
+            background-color: #fff;
+            color: #dc3545;
+            border: 1px solid #dc3545;
+            padding: 8px 12px;
+            border-radius: 4px;
+            font-size: 0.8rem;
+            margin-left: 10px;
+            cursor: pointer;
+        }
+
+        /* 月選択フィルター */
+        .filter-section {
+            margin-bottom: 15px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        #month-filter {
+            width: auto;
+            padding: 8px;
+        }
+
+    </style>
+</head>
+<body>
+
+    <!-- 1. グラフエリア（上部固定） -->
+    <div class="chart-section">
+        <div class="chart-container">
+            <canvas id="expenseChart"></canvas>
+        </div>
+        <!-- 今月の収支サマリー -->
+        <div id="simple-summary" style="font-size: 0.9rem; margin-top: 5px; color: #666;">
+            <!-- JSで挿入 -->
+        </div>
+    </div>
+
+    <div class="container">
+        <!-- 2. 入力フォーム（縦一列） -->
+        <div class="input-form">
+            <h2>新規記録</h2>
+            <form id="record-form">
+                <div class="form-group">
+                    <label>日付</label>
+                    <input type="date" id="date" required>
+                </div>
+
+                <div class="form-group">
+                    <label>種類</label>
+                    <div class="type-selection">
+                        <label class="radio-label">
+                            <input type="radio" id="type-expense" name="type" value="expense" checked>
+                            支出
+                        </label>
+                        <label class="radio-label">
+                            <input type="radio" id="type-income" name="type" value="income">
+                            収入
+                        </label>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label>カテゴリ</label>
+                    <select id="category" required></select>
+                </div>
+
+                <!-- 詳細入力欄を常に表示 -->
+                <div class="form-group">
+                    <label>詳細 (任意)</label>
+                    <input type="text" id="detail" placeholder="例: ジャンプ、カフェラテなど">
+                </div>
+
+                <div class="form-group">
+                    <label>金額</label>
+                    <input type="number" id="amount" min="0" placeholder="0" required inputmode="numeric">
+                </div>
+
+                <button type="submit" id="submit-btn">記録する</button>
+            </form>
+        </div>
+
+        <!-- 3. 履歴一覧 -->
+        <div class="history-section">
+            <div class="filter-section">
+                <h2>履歴</h2>
+                <select id="month-filter"></select>
+            </div>
+            
+            <div id="history-list">
+                <!-- ここに履歴カードが追加されます -->
+            </div>
+        </div>
+    </div>
+
+    <script>
+    document.addEventListener('DOMContentLoaded', () => {
+        // --- 設定・データ ---
+        // カテゴリ定義を更新
+        const categories = {
+            income: ['お小遣い', 'その他'],
+            expense: ['本', '菓子', '飲料', 'ゲーム', 'PC関連', '文具', 'その他']
+        };
+
+        let records = JSON.parse(localStorage.getItem('okozukaiRecords')) || [];
+        let expenseChart = null; // Chartインスタンス保持用
+
+        // --- DOM要素 ---
+        const dateInput = document.getElementById('date');
+        const typeIncome = document.getElementById('type-income');
+        const typeExpense = document.getElementById('type-expense');
+        const categorySelect = document.getElementById('category');
+        const detailInput = document.getElementById('detail'); // ID変更: other-category -> detail
+        const amountInput = document.getElementById('amount');
+        const form = document.getElementById('record-form');
+        const historyList = document.getElementById('history-list');
+        const monthFilter = document.getElementById('month-filter');
+        const simpleSummary = document.getElementById('simple-summary');
+
+        // --- 初期化処理 ---
+        const init = () => {
+            dateInput.value = new Date().toISOString().slice(0, 10);
+            updateCategoryOptions();
+            updateMonthFilter();
+            renderAll();
+        };
+
+        // --- ビュー更新関数 ---
+
+        // 1. カテゴリ選択肢の更新
+        const updateCategoryOptions = () => {
+            const type = typeIncome.checked ? 'income' : 'expense';
+            categorySelect.innerHTML = '';
+            categories[type].forEach(cat => {
+                const opt = document.createElement('option');
+                opt.value = cat;
+                opt.textContent = cat;
+                categorySelect.appendChild(opt);
+            });
+        };
+
+        // 2. 全体の描画（リストとグラフ）
+        const renderAll = () => {
+            // フィルタリング処理
+            // monthFilter.valueが空なら、現在入力されている日付の月を採用、それもなければ今月
+            let selectedMonth = monthFilter.value;
+            if(!selectedMonth && dateInput.value) {
+                selectedMonth = dateInput.value.slice(0, 7);
+            }
+            if(!selectedMonth) {
+                selectedMonth = new Date().toISOString().slice(0, 7);
+            }
+            
+            // 選択月のデータのみ抽出
+            const currentMonthRecords = records.filter(r => r.date.startsWith(selectedMonth));
+            // 日付順（新しい順）にソート
+            currentMonthRecords.sort((a, b) => new Date(b.date) - new Date(a.date));
+
+            // リスト描画
+            renderHistoryList(currentMonthRecords);
+            // グラフ描画
+            renderChart(currentMonthRecords);
+            // サマリー表示
+            renderSummary(currentMonthRecords);
+        };
+
+        // リスト描画
+        const renderHistoryList = (data) => {
+            historyList.innerHTML = '';
+            data.forEach(record => {
+                const isIncome = record.type === 'income';
+                
+                // 詳細があればカッコ書きで追加表示するか、改行して表示するか
+                let detailHtml = '';
+                if (record.detail) {
+                    detailHtml = `<div class="history-detail">└ ${record.detail}</div>`;
+                }
+
+                const div = document.createElement('div');
+                div.className = 'history-card';
+                div.innerHTML = `
+                    <div class="history-info">
+                        <div class="history-date">${record.date}</div>
+                        <div class="history-category">${record.category}</div>
+                        ${detailHtml}
+                        <div class="history-amount ${isIncome ? 'amount-income' : 'amount-expense'}">
+                            ${isIncome ? '+' : '-'} ¥${record.amount.toLocaleString()}
+                        </div>
+                    </div>
+                    <button class="delete-btn" onclick="deleteRecord(${record.id})">削除</button>
+                `;
+                historyList.appendChild(div);
+            });
+        };
+
+        // グラフ描画（Chart.js）
+        const renderChart = (data) => {
+            const ctx = document.getElementById('expenseChart').getContext('2d');
+            
+            // 支出データのみ集計
+            // Chart.js用にデータを整形
+            const expenseMap = {};
+            
+            // カテゴリごとに初期化（表示順序を固定したい場合）
+            categories.expense.forEach(cat => expenseMap[cat] = 0);
+            
+            // 集計
+            data.filter(r => r.type === 'expense').forEach(r => {
+                // 定義外のカテゴリ（古いデータなど）がある場合はその他にまとめるか、そのままキーにする
+                const key = r.category;
+                expenseMap[key] = (expenseMap[key] || 0) + r.amount;
+            });
+
+            // 値が0より大きいカテゴリだけ抽出
+            const labels = Object.keys(expenseMap).filter(k => expenseMap[k] > 0);
+            const values = labels.map(k => expenseMap[k]);
+            
+            // データがない場合の表示
+            if (values.length === 0) {
+                if (expenseChart) {
+                    expenseChart.data.labels = ['データなし'];
+                    expenseChart.data.datasets[0].data = [1];
+                    expenseChart.data.datasets[0].backgroundColor = ['#eee'];
+                    expenseChart.update();
+                } else {
+                    expenseChart = new Chart(ctx, {
+                        type: 'doughnut',
+                        data: {
+                            labels: ['データなし'],
+                            datasets: [{ data: [1], backgroundColor: ['#eee'] }]
+                        },
+                        options: { maintainAspectRatio: false, plugins: { legend: { display: false } } }
+                    });
+                }
+                return;
+            }
+
+            // グラフの色設定
+            const colors = [
+                '#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0', '#9966FF', '#FF9F40', '#C9CBCF', '#E7E9ED'
+            ];
+
+            if (expenseChart) {
+                // 既存のチャートを更新
+                expenseChart.data.labels = labels;
+                expenseChart.data.datasets[0].data = values;
+                expenseChart.data.datasets[0].backgroundColor = colors;
+                expenseChart.update();
+            } else {
+                // 新規作成
+                expenseChart = new Chart(ctx, {
+                    type: 'doughnut',
+                    data: {
+                        labels: labels,
+                        datasets: [{
+                            data: values,
+                            backgroundColor: colors,
+                            borderWidth: 1
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: {
+                                position: 'right',
+                                labels: { boxWidth: 12, font: { size: 10 } }
+                            },
+                            title: {
+                                display: true,
+                                text: '支出内訳',
+                                padding: { bottom: 10 }
+                            }
+                        }
+                    }
+                });
+            }
+        };
+
+        // サマリー描画
+        const renderSummary = (data) => {
+            const income = data.filter(r => r.type === 'income').reduce((sum, r) => sum + r.amount, 0);
+            const expense = data.filter(r => r.type === 'expense').reduce((sum, r) => sum + r.amount, 0);
+            const balance = income - expense;
+            
+            simpleSummary.innerHTML = `
+                収入: <span style="color:#28a745">¥${income.toLocaleString()}</span> / 
+                支出: <span style="color:#dc3545">¥${expense.toLocaleString()}</span> / 
+                残高: <strong>¥${balance.toLocaleString()}</strong>
+            `;
+        };
+
+        // 月フィルター更新
+        const updateMonthFilter = () => {
+            const months = new Set(records.map(r => r.date.slice(0, 7)));
+            const sorted = Array.from(months).sort().reverse();
+            
+            const currentSel = monthFilter.value;
+            monthFilter.innerHTML = '';
+
+            // データがない場合でも今月を追加
+            const thisMonth = new Date().toISOString().slice(0, 7);
+            if (!sorted.includes(thisMonth)) sorted.unshift(thisMonth);
+
+            sorted.forEach(m => {
+                const opt = document.createElement('option');
+                opt.value = m;
+                opt.textContent = `${m.split('-')[0]}年${m.split('-')[1]}月`;
+                monthFilter.appendChild(opt);
+            });
+
+            if (currentSel && sorted.includes(currentSel)) {
+                monthFilter.value = currentSel;
+            } else {
+                monthFilter.value = thisMonth; // デフォルトは今月
+            }
+        };
+
+        // --- イベントリスナー ---
+        
+        // フォーム送信
+        form.addEventListener('submit', (e) => {
+            e.preventDefault();
+            const newRecord = {
+                id: Date.now(),
+                date: dateInput.value,
+                type: typeIncome.checked ? 'income' : 'expense',
+                category: categorySelect.value,
+                detail: detailInput.value, // 詳細（任意）を保存
+                amount: parseInt(amountInput.value, 10)
+            };
+            records.push(newRecord);
+            localStorage.setItem('okozukaiRecords', JSON.stringify(records));
+            
+            // 入力リセット（日付と種類は残す）
+            amountInput.value = '';
+            detailInput.value = '';
+            
+            // 月フィルター更新＆再描画
+            updateMonthFilter();
+            monthFilter.value = newRecord.date.slice(0, 7); // 入力した月を表示
+            renderAll();
+        });
+
+        // 削除機能（グローバル関数として定義）
+        window.deleteRecord = (id) => {
+            if (!confirm('削除しますか？')) return;
+            records = records.filter(r => r.id !== id);
+            localStorage.setItem('okozukaiRecords', JSON.stringify(records));
+            updateMonthFilter();
+            renderAll();
+        };
+
+        // 各種変更イベント
+        typeIncome.addEventListener('change', updateCategoryOptions);
+        typeExpense.addEventListener('change', updateCategoryOptions);
+        // categorySelect変更時の処理は不要になりました（常時表示のため）
+        monthFilter.addEventListener('change', renderAll);
+
+        // 開始
+        init();
+    });
+    </script>
+</body>
+</html>
