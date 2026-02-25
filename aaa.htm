@@ -43,7 +43,7 @@
         .card { background: white; padding: 15px; border-radius: 12px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); margin-bottom: 12px; }
         h2 { font-size: 0.9rem; margin: 0 0 10px 0; border-left: 4px solid var(--main-blue); padding-left: 10px; }
 
-        .target-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px; margin-bottom: 10px; }
+        .target-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 5px; margin-bottom: 10px; }
         .target-input-box { font-size: 0.7rem; text-align: center; }
         .target-input-box input { width: 100%; padding: 4px; border: 1px solid #ddd; border-radius: 4px; text-align: right; box-sizing: border-box; }
 
@@ -76,6 +76,7 @@
         <div class="chart-box"><div class="canvas-container"><canvas id="chart-protein"></canvas></div><div style="font-size:0.65rem; font-weight:bold;">たんぱく質</div><div id="d-protein" style="font-size:0.6rem;"></div></div>
         <div class="chart-box"><div class="canvas-container"><canvas id="chart-fat"></canvas></div><div style="font-size:0.65rem; font-weight:bold;">脂質</div><div id="d-fat" style="font-size:0.6rem;"></div></div>
         <div class="chart-box"><div class="canvas-container"><canvas id="chart-carbs"></canvas></div><div style="font-size:0.65rem; font-weight:bold;">炭水化物</div><div id="d-carbs" style="font-size:0.6rem;"></div></div>
+        <div class="chart-box"><div class="canvas-container"><canvas id="chart-siso"></canvas></div><div style="font-size:0.65rem; font-weight:bold;">大豆イソフラボン</div><div id="d-siso" style="font-size:0.6rem;"></div></div>
     </div>
     <div class="score-display">
         習慣達成スコア: <span id="habit-score">0</span> / 100 点
@@ -95,6 +96,7 @@
             <div class="target-input-box">たんぱく質[g]<input type="number" data-key="protein" value="65"></div>
             <div class="target-input-box">脂質[g]<input type="number" data-key="fat" value="60"></div>
             <div class="target-input-box">炭水化物[g]<input type="number" data-key="carbs" value="300"></div>
+            <div class="target-input-box">大豆イソフラボン[mg]<input type="number" data-key="siso" value="70"></div>
         </div>
     </div>
 
@@ -115,18 +117,18 @@
 const GAS_URL = "https://script.google.com/macros/s/AKfycbxHUe1CVM7QdS6p-ged99y7k7QGzppBx644_yHYf-PmBR-stR-kuU-9KTKG1M7ptlBXzg/exec";
 
 const foodConfigs = [
-    { id: 'bean',     name: '豆', guide: '100g単位', info: '植物性たんぱく質と食物繊維が豊富です。',           p: 15,   f: 6,   c: 30,  type: 'g' },
-    { id: 'meat',     name: '肉類', guide: '100g単位', info: '動物性たんぱく質の主役。部位により脂質が変動。', p: 20,   f: 12,  c: 0,   type: 'g' },
-    { id: 'natto',    name: '納豆', guide: '1パック45g', info: '発酵食品。血液サラサラ成分ナットウキナーゼ。', p: 16.5, f: 10,  c: 12,  type: 'radio', opts: [{l:'なし',v:0},{l:'たべた',v:45}] },
-    { id: 'yogurt',   name: 'ヨーグルト', guide: '100g単位', info: '乳酸菌で腸内環境を整えます。',             p: 3.5,  f: 3,   c: 5,   type: 'g' },
-    { id: 'gyogurt',  name: 'ギリシャヨーグルト', guide: '100g単位', info: '通常の3倍のたんぱく質、低脂質。',  p: 10,   f: 0.2, c: 4,   type: 'g' },
-    { id: 'kinako',   name: 'きな粉', guide: '100g単位', info: '大豆を丸ごと粉末に。大豆イソフラボン。',       p: 35,   f: 23,  c: 30,  type: 'g' },
-    { id: 'milk',     name: '牛乳', guide: '100g単位', info: '吸収の良いカルシウム源。',                       p: 3.3,  f: 3.8, c: 4.8, type: 'g' },
-    { id: 'smilk',    name: '豆乳', guide: '100g単位', info: 'コレステロールゼロの植物性ミルク。',             p: 3.6,  f: 2,   c: 1.8, type: 'g' },
-    { id: 'cheese',   name: 'チーズ', guide: '20g（1個分）', info: 'たんぱく質と脂質が凝縮された食品。',       p: 25,   f: 25,  c: 1.5, type: 'radio', opts: [{l:'なし',v:0},{l:'たべた',v:20}] },
-    { id: 'shirasu',  name: 'しらす大匙1', guide: '約5g', info: '小魚を丸ごと。カルシウム補給に。',            p: 23,   f: 1,   c: 0,   type: 'radio', opts: [{l:'なし',v:0},{l:'たべた',v:5}] },
-    { id: 'fish',     name: '魚介類', guide: '切り身1切れ目安', info: '良質な油（DHA/EPA）が含まれます。',     p: 20,   f: 8,   c: 0,   type: 'radio', opts: [{l:'0g',v:0},{l:'50g',v:50},{l:'100g',v:100}] },
-    { id: 'egg',      name: 'たまご', guide: '1個50g', info: '全ての必須アミノ酸を含む完全栄養食。',           p: 12,   f: 10,  c: 0.4, type: 'radio', opts: [{l:'0個',v:0},{l:'0.5個',v:25},{l:'1個',v:50}] }
+    { id: 'bean',     name: '豆', guide: '100g単位', info: '植物性たんぱく質と食物繊維が豊富です。',           p: 15,   f: 6,   c: 30,  i: 110, type: 'g' },
+    { id: 'meat',     name: '肉類', guide: '100g単位', info: '動物性たんぱく質の主役。部位により脂質が変動。', p: 20,   f: 12,  c: 0,   i: 0, type: 'g' },
+    { id: 'natto',    name: '納豆', guide: '1パック45g', info: '発酵食品。血液サラサラ成分ナットウキナーゼ。', p: 16.5, f: 10,  c: 12,  i: 35, type: 'radio', opts: [{l:'なし',v:0},{l:'たべた',v:45}] },
+    { id: 'yogurt',   name: 'ヨーグルト', guide: '100g単位', info: '乳酸菌で腸内環境を整えます。',             p: 3.5,  f: 3,   c: 5,   i: 0, type: 'g' },
+    { id: 'gyogurt',  name: 'ギリシャヨーグルト', guide: '100g単位', info: '通常の3倍のたんぱく質、低脂質。',  p: 10,   f: 0.2, c: 4,   i: 9, type: 'g' },
+    { id: 'kinako',   name: 'きな粉', guide: '100g単位', info: '大豆を丸ごと粉末に。大豆イソフラボン。',       p: 35,   f: 23,  c: 30,  i: 200, type: 'g' },
+    { id: 'milk',     name: '牛乳', guide: '100g単位', info: '吸収の良いカルシウム源。',                       p: 3.3,  f: 3.8, c: 4.8, i: 0, type: 'g' },
+    { id: 'smilk',    name: '豆乳', guide: '100g単位', info: 'コレステロールゼロの植物性ミルク。',             p: 3.6,  f: 2,   c: 1.8, i: 38, type: 'g' },
+    { id: 'cheese',   name: 'チーズ', guide: '20g（1個分）', info: 'たんぱく質と脂質が凝縮された食品。',       p: 25,   f: 25,  c: 1.5, i: 0, type: 'radio', opts: [{l:'なし',v:0},{l:'たべた',v:20}] },
+    { id: 'shirasu',  name: 'しらす大匙1', guide: '約5g', info: '小魚を丸ごと。カルシウム補給に。',            p: 23,   f: 1,   c: 0,   i: 0, type: 'radio', opts: [{l:'なし',v:0},{l:'たべた',v:5}] },
+    { id: 'fish',     name: '魚介類', guide: '切り身1切れ目安', info: '良質な油（DHA/EPA）が含まれます。',     p: 20,   f: 8,   c: 0,   i: 0, type: 'radio', opts: [{l:'0g',v:0},{l:'50g',v:50},{l:'100g',v:100}] },
+    { id: 'egg',      name: 'たまご', guide: '1個50g', info: '全ての必須アミノ酸を含む完全栄養食。',           p: 12,   f: 10,  c: 0.4, i: 0, type: 'radio', opts: [{l:'0個',v:0},{l:'0.5個',v:25},{l:'1個',v:50}] }
 ];
 
 // B構成（野菜・海藻・きのこ・オイルがスコア対象）
@@ -151,6 +153,13 @@ const bConfigs = [
     { name: '便色', opts: ['なし','黄茶色','茶色','黒茶'] }
 ];
 
+const configs = {
+    protein: { color: '#3498db', unit: 'g' },
+    fat:     { color: '#f1c40f', unit: 'g' }, 
+    carbs:   { color: '#1abc9c', unit: 'g' }, 
+    siso:    { color: '#9b59b6', unit: 'mg' }
+};
+
 const charts = {};
 
 function init() {
@@ -168,10 +177,10 @@ function init() {
         bList.innerHTML += `<div class="item-row"><div class="item-name">${b.name}</div><div class="choice-group B-choice">${b.opts.map((o,i)=>`<label><input type="radio" name="b-${idx}" value="${o}" ${i===0?'checked':''}><span>${o}</span></label>`).join('')}</div></div>`;
     });
 
-    ['protein','fat','carbs'].forEach(id => {
+    ['protein','fat','carbs', 'siso'].forEach(id => {
         charts[id] = new Chart(document.getElementById(`chart-${id}`).getContext('2d'), {
             type: 'doughnut',
-            data: { datasets: [{ data: [0, 100], backgroundColor: [id==='protein'?'#3498db':id==='fat'?'#f1c40f':'#1abc9c', '#eee'], borderWidth: 0 }] },
+            data: { datasets: [{ data: [0, 100], backgroundColor: [configs[id].color, '#eee'], borderWidth: 0 }] },
             options: { responsive: true, cutout: '70%', plugins: { legend: { display: false } }, animation: false }
         });
     });
@@ -183,7 +192,7 @@ function toggleInfo(id) {
 }
 
 function update() {
-    let totals = {protein: 0, fat: 0, carbs: 0};
+    let totals = {protein: 0, fat: 0, carbs: 0, siso: 0};
     let targets = {};
     document.querySelectorAll('#target-inputs input').forEach(i => targets[i.dataset.key] = parseFloat(i.value) || 1);
 
@@ -193,6 +202,7 @@ function update() {
         totals.protein += (f.p * weight) / 100;
         totals.fat += (f.f * weight) / 100;
         totals.carbs += (f.c * weight) / 100;
+        totals.siso += (f.i * weight) / 100;
     });
 
     // B項目スコア計算 (◎=8, ○=4, ×=0)
@@ -224,12 +234,12 @@ function update() {
 	}
 	
     // グラフ反映
-    ['protein','fat','carbs'].forEach(id => {
+    ['protein','fat','carbs', 'siso'].forEach(id => {
         const ratio = totals[id] / targets[id];
         charts[id].data.datasets[0].data = [Math.min(ratio * 100, 100), Math.max(0, 100 - ratio * 100)];
         charts[id].update();
         //document.getElementById(`d-${id}`).innerHTML = `<strong>${(ratio*100).toFixed(0)}%</strong><br>${totals[id].toFixed(1)}g`;
-        document.getElementById(`d-${id}`).innerHTML = `${totals[id].toFixed(1)}g`;
+        document.getElementById(`d-${id}`).innerHTML = `${totals[id].toFixed(1)}${configs[id].unit}`;
     });
     saveState();
 }
@@ -287,7 +297,8 @@ async function uploadToGAS() {
         habit_score: document.getElementById('habit-score').innerText,
         p_total: document.getElementById('d-protein').innerText.replace('<br>',' '),
         f_total: document.getElementById('d-fat').innerText.replace('<br>',' '),
-        c_total: document.getElementById('d-carbs').innerText.replace('<br>',' ')
+        c_total: document.getElementById('d-carbs').innerText.replace('<br>',' '),
+        i_total: document.getElementById('d-siso').innerText.replace('<br>',' ')
     };
     
     // --- 【追加】A項目の入力値を収集 ---
