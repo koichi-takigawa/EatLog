@@ -188,6 +188,41 @@
             padding: 8px;
         }
 
+        /* 繰り越し入力 */
+        .carryover-section {
+            background: #fff;
+            padding: 10px 15px;
+            border-radius: 8px;
+            margin-bottom: 15px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .carryover-section label {
+            font-weight: bold;
+            font-size: 0.9rem;
+            color: #555;
+            white-space: nowrap;
+        }
+
+        #carryover-input {
+            flex: 1;
+            padding: 8px 12px;
+            font-size: 16px;
+            border: 1px solid #ccc;
+            border-radius: 6px;
+            box-sizing: border-box;
+            background-color: #fafafa;
+            width: auto;
+        }
+
+        .carryover-section span {
+            white-space: nowrap;
+            color: #555;
+        }
+
     </style>
 </head>
 <body>
@@ -253,6 +288,13 @@
                 <h2>履歴</h2>
                 <select id="month-filter"></select>
             </div>
+
+            <!-- 先月からの繰り越し入力 -->
+            <div class="carryover-section">
+                <label for="carryover-input">先月からの繰り越し:</label>
+                <input type="number" id="carryover-input" min="0" placeholder="0" inputmode="numeric">
+                <span>円</span>
+            </div>
             
             <div id="history-list">
                 <!-- ここに履歴カードが追加されます -->
@@ -270,6 +312,7 @@
         };
 
         let records = JSON.parse(localStorage.getItem('okozukaiRecords')) || [];
+        let carryOverData = JSON.parse(localStorage.getItem('okozukaiCarryOver')) || {};
         let expenseChart = null; // Chartインスタンス保持用
 
         // --- DOM要素 ---
@@ -283,6 +326,7 @@
         const historyList = document.getElementById('history-list');
         const monthFilter = document.getElementById('month-filter');
         const simpleSummary = document.getElementById('simple-summary');
+        const carryOverInput = document.getElementById('carryover-input');
 
         // --- 初期化処理 ---
         const init = () => {
@@ -317,6 +361,9 @@
             if(!selectedMonth) {
                 selectedMonth = new Date().toISOString().slice(0, 7);
             }
+
+            // 選択月の繰り越し金額を入力欄に反映
+            carryOverInput.value = carryOverData[selectedMonth] || '';
             
             // 選択月のデータのみ抽出
             const currentMonthRecords = records.filter(r => r.date.startsWith(selectedMonth));
@@ -328,7 +375,7 @@
             // グラフ描画
             renderChart(currentMonthRecords);
             // サマリー表示
-            renderSummary(currentMonthRecords);
+            renderSummary(currentMonthRecords, selectedMonth);
         };
 
         // リスト描画
@@ -445,15 +492,17 @@
         };
 
         // サマリー描画
-        const renderSummary = (data) => {
+        const renderSummary = (data, selectedMonth) => {
+            const carryOver = carryOverData[selectedMonth] || 0;
             const income = data.filter(r => r.type === 'income').reduce((sum, r) => sum + r.amount, 0);
             const expense = data.filter(r => r.type === 'expense').reduce((sum, r) => sum + r.amount, 0);
-            const balance = income - expense;
+            const nextCarryOver = carryOver + income - expense;
             
             simpleSummary.innerHTML = `
+                先月繰越: <span style="color:#6c757d">¥${carryOver.toLocaleString()}</span> / 
                 収入: <span style="color:#28a745">¥${income.toLocaleString()}</span> / 
                 支出: <span style="color:#dc3545">¥${expense.toLocaleString()}</span> / 
-                残高: <strong>¥${balance.toLocaleString()}</strong>
+                次月繰越（残高）: <strong style="color:${nextCarryOver >= 0 ? '#007bff' : '#dc3545'}">¥${nextCarryOver.toLocaleString()}</strong>
             `;
         };
 
@@ -523,6 +572,20 @@
         typeExpense.addEventListener('change', updateCategoryOptions);
         // categorySelect変更時の処理は不要になりました（常時表示のため）
         monthFilter.addEventListener('change', renderAll);
+
+        // 繰り越し金額変更時: localStorage保存 & サマリー即時更新
+        carryOverInput.addEventListener('input', () => {
+            const selectedMonth = monthFilter.value || new Date().toISOString().slice(0, 7);
+            const val = parseInt(carryOverInput.value, 10);
+            if (!isNaN(val) && val >= 0) {
+                carryOverData[selectedMonth] = val;
+            } else {
+                delete carryOverData[selectedMonth];
+            }
+            localStorage.setItem('okozukaiCarryOver', JSON.stringify(carryOverData));
+            const currentMonthRecords = records.filter(r => r.date.startsWith(selectedMonth));
+            renderSummary(currentMonthRecords, selectedMonth);
+        });
 
         // 開始
         init();
