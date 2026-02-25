@@ -387,7 +387,7 @@
                 // 詳細があればカッコ書きで追加表示するか、改行して表示するか
                 let detailHtml = '';
                 if (record.detail) {
-                    detailHtml = `<div class="history-detail">└ ${record.detail}</div>`;
+                    detailHtml = `<div class="history-detail">${record.detail}</div>`;
                 }
 
                 const div = document.createElement('div');
