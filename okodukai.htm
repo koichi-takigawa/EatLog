@@ -354,15 +354,27 @@
             // フィルタリング処理
             // monthFilter.valueが空なら、現在入力されている日付の月を採用、それもなければ今月
             let selectedMonth = monthFilter.value;
-            if(!selectedMonth && dateInput.value) {
-                selectedMonth = dateInput.value.slice(0, 7);
-            }
             if(!selectedMonth) {
-                selectedMonth = new Date().toISOString().slice(0, 7);
+                if (dateInput.value) selectedMonth = dateInput.value.slice(0, 7);
+                else selectedMonth = new Date().toISOString().slice(0, 7);
             }
 
-            // 選択月の繰り越し金額を入力欄に反映
-            carryOverInput.value = carryOverData[selectedMonth] || '';
+            // 計算された繰り越し額
+            const calculatedStartBalance = calculateCarryOver(selectedMonth);
+            
+            // 入力欄の制御
+            if (document.activeElement !== carryOverInput) {
+            
+                // 手入力設定があるかどうか
+                const hasManualSetting = carryOverData[selectedMonth] !== undefined;
+                
+                if (hasManualSetting) {
+                    carryOverInput.value = carryOverData[selectedMonth];
+                } else {
+                    carryOverInput.value = ''; // 空にしてplaceholderを見せる
+                    carryOverInput.placeholder = `自動: ${calculatedStartBalance.toLocaleString()}`;
+                }
+            }
             
             // 選択月のデータのみ抽出
             const currentMonthRecords = records.filter(r => r.date.startsWith(selectedMonth));
@@ -373,8 +385,9 @@
             renderHistoryList(currentMonthRecords);
             // グラフ描画
             renderChart(currentMonthRecords);
-            // サマリー表示
-            renderSummary(currentMonthRecords, selectedMonth);
+            
+            // サマリーには計算済みの開始残高を渡す
+            renderSummary(currentMonthRecords, calculatedStartBalance);
         };
 
         // リスト描画
@@ -490,15 +503,73 @@
             }
         };
 
+        // 指定月の繰り越し額を計算する関数
+        const calculateCarryOver = (targetMonth) => {
+            // 1. その月に直接設定がある場合はそれを返す
+            if (carryOverData[targetMonth] !== undefined) {
+                return parseInt(carryOverData[targetMonth], 10);
+            }
+
+            // 2. 設定がない場合、直近の設定月(baseMonth)を探す
+            const setupMonths = Object.keys(carryOverData).sort();
+            let baseMonth = null;
+            
+            // targetMonth より前で、最も新しい設定月を探す
+            for (const m of setupMonths) {
+                if (m < targetMonth) baseMonth = m;
+                else break; 
+            }
+
+            // 残高
+            let balance = 0;
+
+            // 積算対象のレコード
+            let recordsInRange = [];
+
+            // 基準となる設定が見つかった場合
+            if (baseMonth)
+            {
+                balance = parseInt(carryOverData[baseMonth], 10);
+                
+                // baseMonth から targetMonth の前月までの収支を足し合わせる
+                // 条件: baseMonth <= recordMonth < targetMonth
+                recordsInRange = records.filter(r => {
+                    const rMonth = r.date.slice(0, 7);
+                    return baseMonth <= rMonth && rMonth < targetMonth;
+                });
+            }
+            else
+            {
+                // 設定が一つもない、またはターゲット月より前の設定がない場合
+
+                // レコードがひとつもなければ計算不要
+                if (records.length === 0) return 0;
+
+                // targetMonth の前月までの収支を足し合わせる
+                // 条件: recordMonth < targetMonth
+                recordsInRange = records.filter(r => {
+                    const rMonth = r.date.slice(0, 7);
+                    return rMonth < targetMonth;
+                });
+            }
+
+            // 残高計算
+            recordsInRange.forEach(r => {
+                if (r.type === 'income') balance += r.amount;
+                else balance -= r.amount;
+            });
+
+            return balance;
+        };
+
         // サマリー描画
-        const renderSummary = (data, selectedMonth) => {
-            const carryOver = carryOverData[selectedMonth] || 0;
+        const renderSummary = (data, startBalance) => {
             const income = data.filter(r => r.type === 'income').reduce((sum, r) => sum + r.amount, 0);
             const expense = data.filter(r => r.type === 'expense').reduce((sum, r) => sum + r.amount, 0);
-            const nextCarryOver = carryOver + income - expense;
+            const nextCarryOver = startBalance + income - expense;
             
             simpleSummary.innerHTML = `
-                繰越: <span style="color:#6c757d">¥${carryOver.toLocaleString()}</span> / 
+                繰越: <span style="color:#6c757d">¥${startBalance.toLocaleString()}</span> / 
                 収入: <span style="color:#28a745">¥${income.toLocaleString()}</span> / 
                 支出: <span style="color:#dc3545">¥${expense.toLocaleString()}</span> / 
                 残高: <strong style="color:${nextCarryOver >= 0 ? '#007bff' : '#dc3545'}">¥${nextCarryOver.toLocaleString()}</strong>
@@ -572,18 +643,45 @@
         // categorySelect変更時の処理は不要になりました（常時表示のため）
         monthFilter.addEventListener('change', renderAll);
 
-        // 繰り越し金額変更時: localStorage保存 & サマリー即時更新
-        carryOverInput.addEventListener('input', () => {
-            const selectedMonth = monthFilter.value || new Date().toISOString().slice(0, 7);
-            const val = parseInt(carryOverInput.value, 10);
-            if (!isNaN(val) && val >= 0) {
-                carryOverData[selectedMonth] = val;
-            } else {
-                delete carryOverData[selectedMonth];
-            }
+        // 繰り越し金額変更時: 遅延保存
+        let timeoutId;
+        
+        // okozukaiCarryOverの保存
+        const saveCarryOverData = () => {
+            // すでに保存済み（タイマーがない）なら何もしない
+            if (timeoutId === null) return;
+            clearTimeout(timeoutId);
+            timeoutId = null; // タイマーをクリアしたことを明示
             localStorage.setItem('okozukaiCarryOver', JSON.stringify(carryOverData));
-            const currentMonthRecords = records.filter(r => r.date.startsWith(selectedMonth));
-            renderSummary(currentMonthRecords, selectedMonth);
+        };
+
+        carryOverInput.addEventListener('input', () => {
+
+            // 前のタイマーをクリア
+            clearTimeout(timeoutId);
+
+            const selectedMonth = monthFilter.value || new Date().toISOString().slice(0, 7);
+            const valStr = carryOverInput.value;
+            const val = parseInt(valStr, 10);
+            
+            // 入力が空なら設定削除（自動計算に戻る）、数値なら設定保存
+            if (valStr === '' || isNaN(val)) {
+                delete carryOverData[selectedMonth];
+            } else {
+                carryOverData[selectedMonth] = val;
+            }
+
+            // 500ms（0.5秒）後に保存を実行するように予約
+            timeoutId = setTimeout(saveCarryOverData, 500);
+            
+            // 再描画して自動計算結果を反映
+            renderAll();
+        });
+        
+        // フォーカスが外れた時
+        carryOverInput.addEventListener('blur', () => {
+            renderAll();
+            saveCarryOverData();
         });
 
         // 開始
