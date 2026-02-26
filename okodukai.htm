@@ -221,11 +221,105 @@
             white-space: nowrap;
             color: #555;
         }
+        
+        /* --- ハンバーガーメニューのスタイル --- */
+        .menu-btn {
+            position: fixed;
+            top: 15px;
+            right: 15px;
+            z-index: 1001;
+            background: #007bff;
+            color: white;
+            border: none;
+            width: 45px;
+            height: 45px;
+            border-radius: 50%;
+            font-size: 24px;
+            cursor: pointer;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .side-menu {
+            position: fixed;
+            top: 0;
+            right: -280px; /* 最初は隠しておく */
+            width: 280px;
+            height: 100%;
+            background: #fff;
+            z-index: 1000;
+            transition: 0.3s;
+            box-shadow: -2px 0 10px rgba(0,0,0,0.1);
+            padding: 60px 20px 20px;
+            box-sizing: border-box;
+        }
+
+        .side-menu.open {
+            right: 0;
+        }
+
+        .menu-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            z-index: 999;
+            display: none;
+        }
+
+        .menu-overlay.show {
+            display: block;
+        }
+
+        .side-menu h3 {
+            border-bottom: 2px solid #007bff;
+            padding-bottom: 10px;
+            margin-bottom: 20px;
+            font-size: 1.1rem;
+        }
+
+        /* メニュー内のボタン用スタイル（前回の流用・調整） */
+        .menu-item-btn {
+            width: 100%;
+            padding: 12px;
+            margin-bottom: 10px;
+            border: none;
+            border-radius: 6px;
+            font-weight: bold;
+            cursor: pointer;
+            color: white;
+            text-align: center;
+            font-size: 14px;
+        }
+        #export-btn-menu { background-color: #28a745; }
+        #import-btn-menu { background-color: #6c757d; }
 
     </style>
 </head>
 <body>
 
+    <!-- ハンバーガーボタン -->
+    <button class="menu-btn" id="menu-toggle">☰</button>
+
+    <!-- オーバーレイ（メニューが開いている時に背景を暗くする） -->
+    <div class="menu-overlay" id="menu-overlay"></div>
+
+    <!-- サイドメニュー本体 -->
+    <nav class="side-menu" id="side-menu">
+        <h3>メニュー</h3>
+        <button id="export-btn-menu" class="menu-item-btn">JSONを保存 (バックアップ)</button>
+        <button id="import-btn-menu" class="menu-item-btn">JSONを読込 (復元)</button>
+        <input type="file" id="import-file-input" style="display: none;" accept=".json">
+        
+        <div style="margin-top: 30px; font-size: 0.8rem; color: #888;">
+            <p>※保存したJSONファイルは、機種変更時のデータ移行などに使用できます。</p>
+        </div>
+    </nav>
+    
     <!-- 1. グラフエリア（上部固定） -->
     <div class="chart-section">
         <div class="chart-container">
@@ -682,6 +776,63 @@
         carryOverInput.addEventListener('blur', () => {
             renderAll();
             saveCarryOverData();
+        });
+        
+        // --- ハンバーガーメニューの制御 ---
+        const menuToggle = document.getElementById('menu-toggle');
+        const sideMenu = document.getElementById('side-menu');
+        const menuOverlay = document.getElementById('menu-overlay');
+
+        const toggleMenu = () => {
+            sideMenu.classList.toggle('open');
+            menuOverlay.classList.toggle('show');
+            menuToggle.textContent = sideMenu.classList.contains('open') ? '✕' : '☰';
+        };
+
+        menuToggle.addEventListener('click', toggleMenu);
+        menuOverlay.addEventListener('click', toggleMenu); // 背景クリックで閉じる
+
+        // --- データ管理機能（メニュー内のボタンと連動） ---
+        const exportBtn = document.getElementById('export-btn-menu');
+        const importBtn = document.getElementById('import-btn-menu');
+        const fileInput = document.getElementById('import-file-input');
+
+        // エクスポート処理
+        exportBtn.addEventListener('click', () => {
+            const data = { records, carryOverData, exportedAt: new Date().toLocaleString() };
+            const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `okozukai_backup_${new Date().toISOString().slice(0, 10)}.json`;
+            a.click();
+            URL.revokeObjectURL(url);
+            toggleMenu(); // 処理後メニューを閉じる
+        });
+
+        // インポート処理
+        importBtn.addEventListener('click', () => fileInput.click());
+        fileInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                try {
+                    const data = JSON.parse(event.target.result);
+                    if (data.records && data.carryOverData && confirm('データを上書きしてインポートしますか？')) {
+                        records = data.records;
+                        carryOverData = data.carryOverData;
+                        localStorage.setItem('okozukaiRecords', JSON.stringify(records));
+                        localStorage.setItem('okozukaiCarryOver', JSON.stringify(carryOverData));
+                        updateMonthFilter();
+                        renderAll();
+                        alert('完了しました');
+                        toggleMenu(); // 成功時メニューを閉じる
+                    }
+                } catch (err) { alert('読み込み失敗'); }
+                fileInput.value = '';
+            };
+            reader.readAsText(file);
         });
 
         // 開始
