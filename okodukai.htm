@@ -84,23 +84,45 @@
             background-color: #fafafa;
         }
 
-        /* ラジオボタンのスタイル調整 */
+        /* --- 種類選択（ラジオボタン）のボタン化 --- */
         .type-selection {
             display: flex;
-            gap: 20px;
-            padding: 5px 0;
+            background-color: #e9ecef;
+            padding: 4px;
+            border-radius: 8px;
+            gap: 4px;
         }
 
         .radio-label {
-            display: flex;
-            align-items: center;
-            font-size: 1rem;
+            flex: 1;
+            text-align: center;
+            padding: 10px;
             cursor: pointer;
+            border-radius: 6px;
+            font-weight: bold;
+            transition: all 0.2s;
+            display: block;
+            margin: 0;
+            font-size: 0.95rem;
+            color: #666;
         }
 
         .radio-label input {
-            margin-right: 8px;
-            transform: scale(1.2);
+            display: none; /* 実際のラジオボタンは隠す */
+        }
+
+        /* 支出が選択されている時（赤） */
+        .radio-label:has(input[value="expense"]:checked) {
+            background-color: #dc3545;
+            color: white;
+            box-shadow: 0 2px 4px rgba(220, 53, 69, 0.3);
+        }
+
+        /* 収入が選択されている時（緑） */
+        .radio-label:has(input[value="income"]:checked) {
+            background-color: #28a745;
+            color: white;
+            box-shadow: 0 2px 4px rgba(40, 167, 69, 0.3);
         }
 
         /* 記録ボタン */
