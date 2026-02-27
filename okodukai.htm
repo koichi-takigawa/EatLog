@@ -369,9 +369,63 @@
         .btn-cancel { background: #e0e0e0; color: #333; }
         .btn-save { background: #007bff; color: white; }
 
+        /* --- ダークテーマ --- */
+        body.dark-theme {
+            background-color: #1a1a2e;
+            color: #e0e0e0;
+        }
+        body.dark-theme .chart-section {
+            background-color: #16213e;
+        }
+        body.dark-theme .input-form,
+        body.dark-theme .monthly-summary-card,
+        body.dark-theme .history-card,
+        body.dark-theme .side-menu,
+        body.dark-theme .modal-content {
+            background-color: #16213e;
+            color: #e0e0e0;
+        }
+        body.dark-theme .summary-row {
+            border-bottom-color: #2a2a4a;
+        }
+        body.dark-theme .summary-label { color: #aaa; }
+        body.dark-theme .summary-value { color: #e0e0e0; }
+        body.dark-theme h2 { border-left-color: #5b9bd5; }
+        body.dark-theme .form-group label { color: #bbb; }
+        body.dark-theme input[type="date"],
+        body.dark-theme input[type="number"],
+        body.dark-theme input[type="text"],
+        body.dark-theme select {
+            background-color: #0f3460;
+            color: #e0e0e0;
+            border-color: #2a2a5a;
+        }
+        body.dark-theme .history-date { color: #aaa; }
+        body.dark-theme .history-detail { color: #bbb; }
+        body.dark-theme .delete-btn {
+            background-color: #16213e;
+            color: #e06c75;
+            border-color: #e06c75;
+        }
+        body.dark-theme .modal-input {
+            background-color: #0f3460;
+            color: #e0e0e0;
+            border-color: #2a2a5a;
+        }
+        body.dark-theme .modal-content h3 { color: #e0e0e0; }
+        body.dark-theme .btn-cancel { background: #2a2a5a; color: #e0e0e0; }
+
     </style>
 </head>
 <body>
+    <script>
+    (function() {
+        const saved = localStorage.getItem('okozukaiTheme');
+        if (saved === 'dark' || (!saved && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+            document.body.classList.add('dark-theme');
+        }
+    })();
+    </script>
 
     <!-- ハンバーガーボタン -->
     <button class="menu-btn" id="menu-toggle">☰</button>
@@ -385,6 +439,7 @@
         <button id="initial-balance-btn" class="menu-item-btn" style="background-color: #f39c12;">記録開始時残高を設定</button>
         <button id="export-btn-menu" class="menu-item-btn">JSONを保存 (バックアップ)</button>
         <button id="import-btn-menu" class="menu-item-btn">JSONを読込 (復元)</button>
+        <button id="theme-toggle-btn" class="menu-item-btn" style="background-color: #555;">🌙 ダークモード</button>
         <input type="file" id="import-file-input" style="display: none;" accept=".json">
         
         <div style="margin-top: 30px; font-size: 0.8rem; color: #888;">
@@ -787,6 +842,23 @@
 
         menuToggle.addEventListener('click', toggleMenu);
         menuOverlay.addEventListener('click', toggleMenu); // 背景クリックで閉じる
+
+        // --- ダークテーマの制御 ---
+        let isDarkTheme = document.body.classList.contains('dark-theme');
+        const themeToggleBtn = document.getElementById('theme-toggle-btn');
+
+        const syncThemeButton = () => {
+            themeToggleBtn.textContent = isDarkTheme ? '☀️ ライトモード' : '🌙 ダークモード';
+        };
+        syncThemeButton();
+
+        themeToggleBtn.addEventListener('click', () => {
+            isDarkTheme = !isDarkTheme;
+            document.body.classList.toggle('dark-theme', isDarkTheme);
+            localStorage.setItem('okozukaiTheme', isDarkTheme ? 'dark' : 'light');
+            syncThemeButton();
+            toggleMenu();
+        });
 
         // --- モーダルの制御 ---
         const ibModal = document.getElementById('initial-balance-modal');
