@@ -8,12 +8,47 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         /* --- CSS --- */
+        :root {
+            /* ライトテーマ（デフォルト）の変数定義 */
+            --bg-color: #f0f2f5;
+            --text-color: #333;
+            --card-bg: #fff;
+            --input-bg: #fafafa;
+            --input-border: #ccc;
+            --input-text: #333;
+            --shadow-color: rgba(0,0,0,0.1);
+            --header-border: #007bff;
+            --label-color: #555;
+            --sub-text: #666;
+            --border-light: #f0f0f0;
+            --menu-bg: #fff;
+            --modal-overlay: rgba(0,0,0,0.6);
+        }
+
+        /* ダークテーマの変数定義 */
+        body.dark-theme {
+            --bg-color: #18191a;
+            --text-color: #e4e6eb;
+            --card-bg: #242526;
+            --input-bg: #3a3b3c;
+            --input-border: #555;
+            --input-text: #e4e6eb;
+            --shadow-color: rgba(0,0,0,0.3);
+            --header-border: #4e9af1;
+            --label-color: #b0b3b8;
+            --sub-text: #b0b3b8;
+            --border-light: #3e4042;
+            --menu-bg: #242526;
+            --modal-overlay: rgba(0,0,0,0.8);
+        }
+
         body {
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
             margin: 0;
-            background-color: #f0f2f5;
-            color: #333;
+            background-color: var(--bg-color);
+            color: var(--text-color);
             padding-bottom: 50px; /* 下部の余白 */
+            transition: background-color 0.3s, color 0.3s;
         }
 
         /* グラフエリア（上部固定） */
@@ -21,10 +56,11 @@
             position: sticky;
             top: 0;
             z-index: 100;
-            background-color: #fff;
+            background-color: var(--card-bg);
             padding: 10px;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            box-shadow: 0 2px 5px var(--shadow-color);
             text-align: center;
+            transition: background-color 0.3s;
         }
 
         .chart-container {
@@ -45,17 +81,18 @@
         h2 {
             font-size: 1.2rem;
             margin-bottom: 10px;
-            border-left: 4px solid #007bff;
+            border-left: 4px solid var(--header-border);
             padding-left: 8px;
         }
 
         /* 入力フォーム（縦一列） */
         .input-form {
-            background: #fff;
+            background: var(--card-bg);
             padding: 20px;
             border-radius: 8px;
             margin-bottom: 20px;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            box-shadow: 0 1px 3px var(--shadow-color);
+            transition: background-color 0.3s;
         }
 
         .form-group {
@@ -67,7 +104,7 @@
             margin-bottom: 5px;
             font-weight: bold;
             font-size: 0.9rem;
-            color: #555;
+            color: var(--label-color);
         }
 
         /* 入力要素のスタイル（スマホで押しやすく） */
@@ -78,16 +115,17 @@
             width: 100%;
             padding: 12px;
             font-size: 16px; /* ズーム防止 */
-            border: 1px solid #ccc;
+            border: 1px solid var(--input-border);
             border-radius: 6px;
             box-sizing: border-box;
-            background-color: #fafafa;
+            background-color: var(--input-bg);
+            color: var(--input-text);
         }
 
         /* --- 種類選択（ラジオボタン）のボタン化 --- */
         .type-selection {
             display: flex;
-            background-color: #e9ecef;
+            background-color: var(--border-light);
             padding: 4px;
             border-radius: 8px;
             gap: 4px;
@@ -104,7 +142,7 @@
             display: block;
             margin: 0;
             font-size: 0.95rem;
-            color: #666;
+            color: var(--sub-text);
         }
 
         .radio-label input {
@@ -146,17 +184,18 @@
         
         /* --- 月間サマリーカードのスタイル --- */
         .monthly-summary-card {
-            background: #fff;
+            background: var(--card-bg);
             padding: 15px 20px;
             border-radius: 8px;
             margin-bottom: 20px;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            box-shadow: 0 1px 3px var(--shadow-color);
+            transition: background-color 0.3s;
         }
         .summary-row {
             display: flex;
             justify-content: space-between;
             padding: 8px 0;
-            border-bottom: 1px solid #f0f0f0;
+            border-bottom: 1px solid var(--border-light);
             font-size: 0.95rem;
         }
         .summary-row:last-child {
@@ -166,23 +205,24 @@
             font-weight: bold;
             font-size: 1.1rem;
         }
-        .summary-label { color: #666; }
-        .summary-value { color: #333; }
+        .summary-label { color: var(--sub-text); }
+        .summary-value { color: var(--text-color); }
         .val-income { color: #28a745; }
         .val-expense { color: #dc3545; }
         .val-balance { color: #007bff; }
 
         /* 履歴リスト */
         .history-card {
-            background: #fff;
+            background: var(--card-bg);
             border-radius: 8px;
             overflow: hidden;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            box-shadow: 0 1px 3px var(--shadow-color);
             margin-bottom: 10px;
             display: flex;
             justify-content: space-between;
             align-items: center;
             padding: 15px;
+            transition: background-color 0.3s;
         }
 
         .history-info {
@@ -191,7 +231,7 @@
 
         .history-date {
             font-size: 0.8rem;
-            color: #888;
+            color: var(--sub-text);
         }
 
         .history-category {
@@ -202,7 +242,7 @@
         
         .history-detail {
             font-size: 0.85rem;
-            color: #666;
+            color: var(--sub-text);
             margin-top: 2px;
         }
 
@@ -215,7 +255,7 @@
         .amount-expense { color: #dc3545; }
 
         .delete-btn {
-            background-color: #fff;
+            background-color: var(--card-bg);
             color: #dc3545;
             border: 1px solid #dc3545;
             padding: 8px 12px;
@@ -264,12 +304,13 @@
             right: -280px; /* 最初は隠しておく */
             width: 280px;
             height: 100%;
-            background: #fff;
+            background: var(--menu-bg);
             z-index: 1000;
             transition: 0.3s;
             box-shadow: -2px 0 10px rgba(0,0,0,0.1);
             padding: 60px 20px 20px;
             box-sizing: border-box;
+            color: var(--text-color);
         }
 
         .side-menu.open {
@@ -311,8 +352,10 @@
             text-align: center;
             font-size: 14px;
         }
+        #initial-balance-btn { background-color: #f39c12; }
         #export-btn-menu { background-color: #28a745; }
         #import-btn-menu { background-color: #6c757d; }
+        #theme-toggle-btn { background-color: #343a40; }
         
         /* --- モーダル（子ウィンドウ）のスタイル --- */
         .modal {
@@ -322,7 +365,7 @@
             left: 0;
             width: 100%;
             height: 100%;
-            background: rgba(0,0,0,0.6);
+            background: var(--modal-overlay);
             z-index: 2000;
             align-items: center;
             justify-content: center;
@@ -331,28 +374,31 @@
             display: flex;
         }
         .modal-content {
-            background: #fff;
+            background: var(--card-bg);
             padding: 25px;
             border-radius: 12px;
             width: 90%;
             max-width: 320px;
             box-shadow: 0 4px 15px rgba(0,0,0,0.3);
             text-align: center;
+            color: var(--text-color);
         }
         .modal-content h3 {
             margin-top: 0;
             font-size: 1.1rem;
-            color: #333;
+            color: var(--text-color);
         }
         .modal-input {
             width: 100%;
             padding: 12px;
             margin: 15px 0;
             font-size: 18px;
-            border: 1px solid #ddd;
+            border: 1px solid var(--input-border);
             border-radius: 6px;
             box-sizing: border-box;
             text-align: right;
+            background-color: var(--input-bg);
+            color: var(--input-text);
         }
         .modal-btns {
             display: flex;
@@ -366,7 +412,7 @@
             font-weight: bold;
             cursor: pointer;
         }
-        .btn-cancel { background: #e0e0e0; color: #333; }
+        .btn-cancel { background: var(--border-light); color: var(--text-color); }
         .btn-save { background: #007bff; color: white; }
 
     </style>
@@ -382,7 +428,8 @@
     <!-- サイドメニュー本体 -->
     <nav class="side-menu" id="side-menu">
         <h3>メニュー</h3>
-        <button id="initial-balance-btn" class="menu-item-btn" style="background-color: #f39c12;">記録開始時残高を設定</button>
+        <button id="theme-toggle-btn" class="menu-item-btn">ダークモード切替</button>
+        <button id="initial-balance-btn" class="menu-item-btn">記録開始時残高を設定</button>
         <button id="export-btn-menu" class="menu-item-btn">JSONを保存 (バックアップ)</button>
         <button id="import-btn-menu" class="menu-item-btn">JSONを読込 (復元)</button>
         <input type="file" id="import-file-input" style="display: none;" accept=".json">
@@ -398,7 +445,7 @@
             <canvas id="expenseChart"></canvas>
         </div>
         <!-- 今月の収支サマリー -->
-        <div id="simple-summary" style="font-size: 0.9rem; margin-top: 5px; color: #666;">
+        <div id="simple-summary" style="font-size: 0.9rem; margin-top: 5px; color: var(--sub-text);">
             <!-- JSで挿入 -->
         </div>
     </div>
@@ -469,7 +516,7 @@
     <div class="modal" id="initial-balance-modal">
         <div class="modal-content">
             <h3>記録開始時残高の設定</h3>
-            <p style="font-size: 0.8rem; color: #666;">最初の記録より前の残高を入力してください</p>
+            <p style="font-size: 0.8rem; color: var(--sub-text);">最初の記録より前の残高を入力してください</p>
             <input type="number" id="modal-initial-input" class="modal-input" placeholder="0" inputmode="numeric">
             <div class="modal-btns">
                 <button class="modal-btn btn-cancel" id="modal-cancel-btn">キャンセル</button>
@@ -490,6 +537,7 @@
         let records = JSON.parse(localStorage.getItem('okozukaiRecords')) || [];
         let initialBalance = parseInt(localStorage.getItem('okozukaiInitialBalance')) || 0;
         let expenseChart = null; // Chartインスタンス保持用
+        let isDarkTheme = localStorage.getItem('okozukaiDarkTheme') === 'true'; // テーマ設定読み込み
 
         // --- DOM要素 ---
         const dateInput = document.getElementById('date');
@@ -501,14 +549,36 @@
         const form = document.getElementById('record-form');
         const historyList = document.getElementById('history-list');
         const monthFilter = document.getElementById('month-filter');
+        const themeToggleBtn = document.getElementById('theme-toggle-btn');
 
         // --- 初期化処理 ---
         const init = () => {
+            // テーマ適用
+            if (isDarkTheme) {
+                document.body.classList.add('dark-theme');
+                themeToggleBtn.textContent = 'ライトモード切替';
+            }
+
             dateInput.value = new Date().toISOString().slice(0, 10);
             updateCategoryOptions();
             updateMonthFilter();
             renderAll();
         };
+
+        // --- テーマ切り替え処理 ---
+        themeToggleBtn.addEventListener('click', () => {
+            isDarkTheme = !isDarkTheme;
+            if (isDarkTheme) {
+                document.body.classList.add('dark-theme');
+                themeToggleBtn.textContent = 'ライトモード切替';
+            } else {
+                document.body.classList.remove('dark-theme');
+                themeToggleBtn.textContent = 'ダークモード切替';
+            }
+            localStorage.setItem('okozukaiDarkTheme', isDarkTheme);
+            renderChart(records.filter(r => r.date.startsWith(monthFilter.value))); // チャートの文字色更新などは再描画が望ましいが、今回は背景透過なのでそのままでもある程度OK
+            toggleMenu(); // メニュー閉じる
+        });
 
         // --- ビュー更新関数 ---
 
@@ -608,13 +678,18 @@
                     expenseChart.data.labels = ['データなし'];
                     expenseChart.data.datasets[0].data = [1];
                     expenseChart.data.datasets[0].backgroundColor = ['#eee'];
+                    expenseChart.data.datasets[0].borderColor = document.body.classList.contains('dark-theme') ? '#242526' : '#fff';
                     expenseChart.update();
                 } else {
                     expenseChart = new Chart(ctx, {
                         type: 'doughnut',
                         data: {
                             labels: ['データなし'],
-                            datasets: [{ data: [1], backgroundColor: ['#eee'] }]
+                            datasets: [{ 
+                                data: [1], 
+                                backgroundColor: ['#eee'],
+                                borderColor: document.body.classList.contains('dark-theme') ? '#242526' : '#fff'
+                            }]
                         },
                         options: { maintainAspectRatio: false, plugins: { legend: { display: false } } }
                     });
@@ -626,12 +701,17 @@
             const colors = [
                 '#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0', '#9966FF', '#FF9F40', '#C9CBCF', '#E7E9ED'
             ];
+            
+            // ボーダー色（テーマに合わせて）
+            const borderColor = document.body.classList.contains('dark-theme') ? '#242526' : '#fff';
 
             if (expenseChart) {
                 // 既存のチャートを更新
                 expenseChart.data.labels = labels;
                 expenseChart.data.datasets[0].data = values;
                 expenseChart.data.datasets[0].backgroundColor = colors;
+                expenseChart.data.datasets[0].borderColor = borderColor;
+                expenseChart.options.plugins.legend.labels.color = document.body.classList.contains('dark-theme') ? '#e4e6eb' : '#666';
                 expenseChart.update();
             } else {
                 // 新規作成
@@ -642,7 +722,8 @@
                         datasets: [{
                             data: values,
                             backgroundColor: colors,
-                            borderWidth: 1
+                            borderWidth: 1,
+                            borderColor: borderColor
                         }]
                     },
                     options: {
@@ -651,7 +732,7 @@
                         plugins: {
                             legend: {
                                 position: 'right',
-                                labels: { boxWidth: 12, font: { size: 10 } }
+                                labels: { boxWidth: 12, font: { size: 10 }, color: document.body.classList.contains('dark-theme') ? '#e4e6eb' : '#666' }
                             },
                             title: {
                                 display: false,
