@@ -209,12 +209,14 @@
 
         #carryover-input {
             flex-grow: 1;
-            padding: 8px 12px;
+            padding: 8px 5px;
             font-size: 16px;
-            border: 1px solid #ccc;
-            border-radius: 6px;
-            box-sizing: border-box;
-            background-color: #fafafa;
+            border: none; /* 枠線を消す */
+            background-color: transparent; /* 背景を透明に */
+            font-weight: bold;
+            color: #555;
+            text-align: right;
+            pointer-events: none; /* クリック・フォーカスを無効化 */
         }
 
         .carryover-section span {
@@ -297,6 +299,61 @@
         }
         #export-btn-menu { background-color: #28a745; }
         #import-btn-menu { background-color: #6c757d; }
+        
+        /* --- モーダル（子ウィンドウ）のスタイル --- */
+        .modal {
+            display: none; /* 最初は隠す */
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.6);
+            z-index: 2000;
+            align-items: center;
+            justify-content: center;
+        }
+        .modal.show {
+            display: flex;
+        }
+        .modal-content {
+            background: #fff;
+            padding: 25px;
+            border-radius: 12px;
+            width: 90%;
+            max-width: 320px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+            text-align: center;
+        }
+        .modal-content h3 {
+            margin-top: 0;
+            font-size: 1.1rem;
+            color: #333;
+        }
+        .modal-input {
+            width: 100%;
+            padding: 12px;
+            margin: 15px 0;
+            font-size: 18px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            box-sizing: border-box;
+            text-align: right;
+        }
+        .modal-btns {
+            display: flex;
+            gap: 10px;
+        }
+        .modal-btn {
+            flex: 1;
+            padding: 12px;
+            border: none;
+            border-radius: 6px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+        .btn-cancel { background: #e0e0e0; color: #333; }
+        .btn-save { background: #007bff; color: white; }
 
     </style>
 </head>
@@ -311,6 +368,7 @@
     <!-- サイドメニュー本体 -->
     <nav class="side-menu" id="side-menu">
         <h3>メニュー</h3>
+        <button id="initial-balance-btn" class="menu-item-btn" style="background-color: #f39c12;">記録開始時残高を設定</button>
         <button id="export-btn-menu" class="menu-item-btn">JSONを保存 (バックアップ)</button>
         <button id="import-btn-menu" class="menu-item-btn">JSONを読込 (復元)</button>
         <input type="file" id="import-file-input" style="display: none;" accept=".json">
@@ -382,15 +440,28 @@
                 <select id="month-filter"></select>
             </div>
 
-            <!-- 先月からの繰り越し入力 -->
-            <div class="carryover-section">
-                <label for="carryover-input">先月からの繰り越し:</label>
-                <input type="number" id="carryover-input" min="0" placeholder="0" inputmode="numeric">
-                <span>円</span>
-            </div>
-            
             <div id="history-list">
                 <!-- ここに履歴カードが追加されます -->
+            </div>
+
+            <!-- 先月からの繰り越し表示（編集不可） -->
+            <div class="carryover-section">
+                <label>先月からの繰り越し:</label>
+                <input type="text" id="carryover-input" readonly>
+                <span>円</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- 開始時残高設定モーダル -->
+    <div class="modal" id="initial-balance-modal">
+        <div class="modal-content">
+            <h3>記録開始時残高の設定</h3>
+            <p style="font-size: 0.8rem; color: #666;">最初の記録より前の残高を入力してください</p>
+            <input type="number" id="modal-initial-input" class="modal-input" placeholder="0" inputmode="numeric">
+            <div class="modal-btns">
+                <button class="modal-btn btn-cancel" id="modal-cancel-btn">キャンセル</button>
+                <button class="modal-btn btn-save" id="modal-save-btn">決定</button>
             </div>
         </div>
     </div>
@@ -405,7 +476,7 @@
         };
 
         let records = JSON.parse(localStorage.getItem('okozukaiRecords')) || [];
-        let carryOverData = JSON.parse(localStorage.getItem('okozukaiCarryOver')) || {};
+        let initialBalance = parseInt(localStorage.getItem('okozukaiInitialBalance')) || 0;
         let expenseChart = null; // Chartインスタンス保持用
 
         // --- DOM要素 ---
@@ -413,7 +484,7 @@
         const typeIncome = document.getElementById('type-income');
         const typeExpense = document.getElementById('type-expense');
         const categorySelect = document.getElementById('category');
-        const detailInput = document.getElementById('detail'); // ID変更: other-category -> detail
+        const detailInput = document.getElementById('detail');
         const amountInput = document.getElementById('amount');
         const form = document.getElementById('record-form');
         const historyList = document.getElementById('history-list');
@@ -456,19 +527,8 @@
             // 計算された繰り越し額
             const calculatedStartBalance = calculateCarryOver(selectedMonth);
             
-            // 入力欄の制御
-            if (document.activeElement !== carryOverInput) {
-            
-                // 手入力設定があるかどうか
-                const hasManualSetting = carryOverData[selectedMonth] !== undefined;
-                
-                if (hasManualSetting) {
-                    carryOverInput.value = carryOverData[selectedMonth];
-                } else {
-                    carryOverInput.value = ''; // 空にしてplaceholderを見せる
-                    carryOverInput.placeholder = `自動: ${calculatedStartBalance.toLocaleString()}`;
-                }
-            }
+            // 表示を更新（カンマ区切りでセット）
+            carryOverInput.value = calculatedStartBalance.toLocaleString();
             
             // 選択月のデータのみ抽出
             const currentMonthRecords = records.filter(r => r.date.startsWith(selectedMonth));
@@ -597,58 +657,12 @@
             }
         };
 
-        // 指定月の繰り越し額を計算する関数
+        // 指定月より前の全収支を計算する
         const calculateCarryOver = (targetMonth) => {
-            // 1. その月に直接設定がある場合はそれを返す
-            if (carryOverData[targetMonth] !== undefined) {
-                return parseInt(carryOverData[targetMonth], 10);
-            }
-
-            // 2. 設定がない場合、直近の設定月(baseMonth)を探す
-            const setupMonths = Object.keys(carryOverData).sort();
-            let baseMonth = null;
-            
-            // targetMonth より前で、最も新しい設定月を探す
-            for (const m of setupMonths) {
-                if (m < targetMonth) baseMonth = m;
-                else break; 
-            }
-
-            // 残高
-            let balance = 0;
-
-            // 積算対象のレコード
-            let recordsInRange = [];
-
-            // 基準となる設定が見つかった場合
-            if (baseMonth)
-            {
-                balance = parseInt(carryOverData[baseMonth], 10);
-                
-                // baseMonth から targetMonth の前月までの収支を足し合わせる
-                // 条件: baseMonth <= recordMonth < targetMonth
-                recordsInRange = records.filter(r => {
-                    const rMonth = r.date.slice(0, 7);
-                    return baseMonth <= rMonth && rMonth < targetMonth;
-                });
-            }
-            else
-            {
-                // 設定が一つもない、またはターゲット月より前の設定がない場合
-
-                // レコードがひとつもなければ計算不要
-                if (records.length === 0) return 0;
-
-                // targetMonth の前月までの収支を足し合わせる
-                // 条件: recordMonth < targetMonth
-                recordsInRange = records.filter(r => {
-                    const rMonth = r.date.slice(0, 7);
-                    return rMonth < targetMonth;
-                });
-            }
-
-            // 残高計算
-            recordsInRange.forEach(r => {
+            let balance = initialBalance;
+            // ターゲット月より前のレコードをすべて集計
+            const recordsBefore = records.filter(r => r.date.slice(0, 7) < targetMonth);
+            recordsBefore.forEach(r => {
                 if (r.type === 'income') balance += r.amount;
                 else balance -= r.amount;
             });
@@ -737,47 +751,6 @@
         // categorySelect変更時の処理は不要になりました（常時表示のため）
         monthFilter.addEventListener('change', renderAll);
 
-        // 繰り越し金額変更時: 遅延保存
-        let timeoutId;
-        
-        // okozukaiCarryOverの保存
-        const saveCarryOverData = () => {
-            // すでに保存済み（タイマーがない）なら何もしない
-            if (timeoutId === null) return;
-            clearTimeout(timeoutId);
-            timeoutId = null; // タイマーをクリアしたことを明示
-            localStorage.setItem('okozukaiCarryOver', JSON.stringify(carryOverData));
-        };
-
-        carryOverInput.addEventListener('input', () => {
-
-            // 前のタイマーをクリア
-            clearTimeout(timeoutId);
-
-            const selectedMonth = monthFilter.value || new Date().toISOString().slice(0, 7);
-            const valStr = carryOverInput.value;
-            const val = parseInt(valStr, 10);
-            
-            // 入力が空なら設定削除（自動計算に戻る）、数値なら設定保存
-            if (valStr === '' || isNaN(val)) {
-                delete carryOverData[selectedMonth];
-            } else {
-                carryOverData[selectedMonth] = val;
-            }
-
-            // 500ms（0.5秒）後に保存を実行するように予約
-            timeoutId = setTimeout(saveCarryOverData, 500);
-            
-            // 再描画して自動計算結果を反映
-            renderAll();
-        });
-        
-        // フォーカスが外れた時
-        carryOverInput.addEventListener('blur', () => {
-            renderAll();
-            saveCarryOverData();
-        });
-        
         // --- ハンバーガーメニューの制御 ---
         const menuToggle = document.getElementById('menu-toggle');
         const sideMenu = document.getElementById('side-menu');
@@ -792,14 +765,47 @@
         menuToggle.addEventListener('click', toggleMenu);
         menuOverlay.addEventListener('click', toggleMenu); // 背景クリックで閉じる
 
+        // --- モーダルの制御 ---
+        const ibModal = document.getElementById('initial-balance-modal');
+        const ibInput = document.getElementById('modal-initial-input');
+
+        // メニューの「記録開始時残高を設定」ボタン押下
+        document.getElementById('initial-balance-btn').addEventListener('click', () => {
+
+            // 金額が 0 のときは空文字をセットして placeholder を表示させる
+            ibInput.value = initialBalance === 0 ? '' : initialBalance;
+            
+            ibModal.classList.add('show');
+            toggleMenu(); // ハンバーガーメニューを閉じる
+            ibInput.focus();
+        });
+
+        // モーダル内の「キャンセル」
+        document.getElementById('modal-cancel-btn').addEventListener('click', () => {
+            ibModal.classList.remove('show');
+        });
+
+        // モーダル内の「決定」
+        document.getElementById('modal-save-btn').addEventListener('click', () => {
+            const val = parseInt(ibInput.value, 10);
+            initialBalance = isNaN(val) ? 0 : val;
+            localStorage.setItem('okozukaiInitialBalance', initialBalance);
+            
+            ibModal.classList.remove('show');
+            renderAll(); // 画面更新
+        });
+
+        // モーダルの外側をクリックして閉じる
+        ibModal.addEventListener('click', (e) => {
+            if (e.target === ibModal) ibModal.classList.remove('show');
+        });
+        
         // --- データ管理機能（メニュー内のボタンと連動） ---
-        const exportBtn = document.getElementById('export-btn-menu');
-        const importBtn = document.getElementById('import-btn-menu');
         const fileInput = document.getElementById('import-file-input');
 
         // エクスポート処理
-        exportBtn.addEventListener('click', () => {
-            const data = { records, carryOverData, exportedAt: new Date().toLocaleString() };
+        document.getElementById('export-btn-menu').addEventListener('click', () => {
+            const data = { records, initialBalance, exportedAt: new Date().toLocaleString() };
             const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
@@ -811,7 +817,7 @@
         });
 
         // インポート処理
-        importBtn.addEventListener('click', () => fileInput.click());
+        document.getElementById('import-btn-menu').addEventListener('click', () => fileInput.click());
         fileInput.addEventListener('change', (e) => {
             const file = e.target.files[0];
             if (!file) return;
@@ -821,9 +827,9 @@
                     const data = JSON.parse(event.target.result);
                     if (data.records && data.carryOverData && confirm('データを上書きしてインポートしますか？')) {
                         records = data.records;
-                        carryOverData = data.carryOverData;
+                        initialBalance = data.initialBalance || 0;
                         localStorage.setItem('okozukaiRecords', JSON.stringify(records));
-                        localStorage.setItem('okozukaiCarryOver', JSON.stringify(carryOverData));
+                        localStorage.setItem('okozukaiInitialBalance', initialBalance);
                         updateMonthFilter();
                         renderAll();
                         alert('完了しました');
