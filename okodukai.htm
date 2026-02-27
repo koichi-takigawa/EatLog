@@ -121,6 +121,34 @@
             background-color: #0056b3;
             transform: translateY(1px);
         }
+        
+        /* --- 月間サマリーカードのスタイル --- */
+        .monthly-summary-card {
+            background: #fff;
+            padding: 15px 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        .summary-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 0;
+            border-bottom: 1px solid #f0f0f0;
+            font-size: 0.95rem;
+        }
+        .summary-row:last-child {
+            border-bottom: none;
+            margin-top: 5px;
+            padding-top: 12px;
+            font-weight: bold;
+            font-size: 1.1rem;
+        }
+        .summary-label { color: #666; }
+        .summary-value { color: #333; }
+        .val-income { color: #28a745; }
+        .val-expense { color: #dc3545; }
+        .val-balance { color: #007bff; }
 
         /* 履歴リスト */
         .history-card {
@@ -188,42 +216,6 @@
             padding: 8px;
         }
 
-        /* 繰り越し入力 */
-        .carryover-section {
-            background: #fff;
-            padding: 10px 15px;
-            border-radius: 8px;
-            margin-bottom: 15px;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-
-        .carryover-section label {
-            font-weight: bold;
-            font-size: 0.9rem;
-            color: #555;
-            white-space: nowrap;
-        }
-
-        #carryover-input {
-            flex-grow: 1;
-            padding: 8px 5px;
-            font-size: 16px;
-            border: none; /* 枠線を消す */
-            background-color: transparent; /* 背景を透明に */
-            font-weight: bold;
-            color: #555;
-            text-align: right;
-            pointer-events: none; /* クリック・フォーカスを無効化 */
-        }
-
-        .carryover-section span {
-            white-space: nowrap;
-            color: #555;
-        }
-        
         /* --- ハンバーガーメニューのスタイル --- */
         .menu-btn {
             position: fixed;
@@ -432,6 +424,11 @@
                 <button type="submit" id="submit-btn">記録する</button>
             </form>
         </div>
+        
+		<!-- サマリーエリア -->
+        <div id="monthly-summary" class="monthly-summary-card">
+            <!-- JSで動的に挿入されます -->
+        </div>
 
         <!-- 3. 履歴一覧 -->
         <div class="history-section">
@@ -442,13 +439,6 @@
 
             <div id="history-list">
                 <!-- ここに履歴カードが追加されます -->
-            </div>
-
-            <!-- 先月からの繰り越し表示（編集不可） -->
-            <div class="carryover-section">
-                <label>先月からの繰り越し:</label>
-                <input type="text" id="carryover-input" readonly>
-                <span>円</span>
             </div>
         </div>
     </div>
@@ -472,7 +462,7 @@
         // カテゴリ定義を更新
         const categories = {
             income: ['お小遣い', 'その他'],
-            expense: ['本', '菓子', '飲料', 'ゲーム', 'PC関連', '文具', 'その他']
+            expense: ['お菓子・飲み物', 'おもちゃ・ゲーム', '文房具・本', 'コンピュータ関連', '遊び・交通費', 'プレゼント', 'その他']
         };
 
         let records = JSON.parse(localStorage.getItem('okozukaiRecords')) || [];
@@ -489,8 +479,6 @@
         const form = document.getElementById('record-form');
         const historyList = document.getElementById('history-list');
         const monthFilter = document.getElementById('month-filter');
-        const simpleSummary = document.getElementById('simple-summary');
-        const carryOverInput = document.getElementById('carryover-input');
 
         // --- 初期化処理 ---
         const init = () => {
@@ -526,10 +514,7 @@
 
             // 計算された繰り越し額
             const calculatedStartBalance = calculateCarryOver(selectedMonth);
-            
-            // 表示を更新（カンマ区切りでセット）
-            carryOverInput.value = calculatedStartBalance.toLocaleString();
-            
+
             // 選択月のデータのみ抽出
             const currentMonthRecords = records.filter(r => r.date.startsWith(selectedMonth));
             // 日付順（新しい順）にソート
@@ -647,7 +632,7 @@
                                 labels: { boxWidth: 12, font: { size: 10 } }
                             },
                             title: {
-                                display: true,
+                                display: false,
                                 text: '支出内訳',
                                 padding: { bottom: 10 }
                             }
@@ -676,11 +661,27 @@
             const expense = data.filter(r => r.type === 'expense').reduce((sum, r) => sum + r.amount, 0);
             const nextCarryOver = startBalance + income - expense;
             
-            simpleSummary.innerHTML = `
-                繰越: <span style="color:#6c757d">¥${startBalance.toLocaleString()}</span> / 
-                収入: <span style="color:#28a745">¥${income.toLocaleString()}</span> / 
-                支出: <span style="color:#dc3545">¥${expense.toLocaleString()}</span> / 
-                残高: <strong style="color:${nextCarryOver >= 0 ? '#007bff' : '#dc3545'}">¥${nextCarryOver.toLocaleString()}</strong>
+            document.getElementById('simple-summary').innerHTML = `
+                支出計: <span style="color:#dc3545">¥${expense.toLocaleString()}</span>
+            `;
+
+            document.getElementById('monthly-summary').innerHTML = `
+                <div class="summary-row">
+                    <span class="summary-label">先月からの繰越</span>
+                    <span class="summary-value">¥${startBalance.toLocaleString()}</span>
+                </div>
+                <div class="summary-row">
+                    <span class="summary-label">今月の収入</span>
+                    <span class="summary-value val-income">+ ¥${income.toLocaleString()}</span>
+                </div>
+                <div class="summary-row">
+                    <span class="summary-label">今月の支出</span>
+                    <span class="summary-value val-expense">- ¥${expense.toLocaleString()}</span>
+                </div>
+                <div class="summary-row">
+                    <span class="summary-label">現在の残高</span>
+                    <span class="summary-value val-balance">¥${nextCarryOver.toLocaleString()}</span>
+                </div>
             `;
         };
 
