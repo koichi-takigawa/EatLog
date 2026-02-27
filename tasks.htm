@@ -1,0 +1,396 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>タスク管理アプリ</title>
+    <style>
+        /* ベーススタイル */
+        :root {
+            --primary-color: #007bff;
+            --danger-color: #dc3545;
+            --bg-color: #f4f7f6;
+            --card-bg: #ffffff;
+            --text-color: #333;
+            --border-radius: 8px;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background-color: var(--bg-color);
+            margin: 0;
+            padding: 0;
+            color: var(--text-color);
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 15px;
+            padding-bottom: 80px; /* 下部の余白（FAB用） */
+        }
+
+        h1 {
+            text-align: center;
+            font-size: 1.5rem;
+            margin: 15px 0;
+            color: #444;
+        }
+
+        /* カード共通スタイル */
+        .card {
+            background-color: var(--card-bg);
+            border-radius: var(--border-radius);
+            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+            padding: 15px;
+            margin-bottom: 15px;
+        }
+
+        /* 入力フォーム */
+        .input-group {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .form-control {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #ddd;
+            border-radius: var(--border-radius);
+            box-sizing: border-box;
+            font-size: 16px; /* スマホでズーム防止 */
+            appearance: none; /* iOSのデフォルトスタイル解除 */
+        }
+
+        .row {
+            display: flex;
+            gap: 10px;
+        }
+        
+        .row > * {
+            flex: 1;
+        }
+
+        /* ボタン */
+        .btn {
+            padding: 12px;
+            border: none;
+            border-radius: var(--border-radius);
+            font-size: 1rem;
+            font-weight: bold;
+            cursor: pointer;
+            text-align: center;
+            transition: opacity 0.2s;
+        }
+
+        .btn:active {
+            opacity: 0.8;
+        }
+
+        .btn-primary {
+            background-color: var(--primary-color);
+            color: white;
+            width: 100%;
+        }
+
+        .btn-danger {
+            background-color: var(--danger-color);
+            color: white;
+            padding: 8px 12px;
+            font-size: 0.9rem;
+            width: auto;
+        }
+
+        /* フィルタセクション */
+        .filter-section label {
+            display: block;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+
+        /* タスクリスト */
+        .task-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+
+        .task-item {
+            background-color: var(--card-bg);
+            border-radius: var(--border-radius);
+            box-shadow: 0 2px 4px rgba(0,0,0,0.03);
+            margin-bottom: 10px;
+            padding: 15px;
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            border-left: 6px solid transparent;
+        }
+
+        .task-content {
+            flex-grow: 1;
+            margin-right: 10px;
+        }
+
+        .task-title {
+            font-size: 1.1rem;
+            font-weight: bold;
+            margin-bottom: 5px;
+            display: block;
+        }
+
+        .task-meta {
+            font-size: 0.85rem;
+            color: #666;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .tag {
+            background-color: #eee;
+            padding: 2px 6px;
+            border-radius: 4px;
+        }
+
+        /* 優先度カラー */
+        .priority-high { border-left-color: #dc3545; }
+        .priority-medium { border-left-color: #ffc107; }
+        .priority-low { border-left-color: #28a745; }
+
+        /* スティッキーヘッダー的に使う場合などに備えて */
+        .app-header {
+            margin-bottom: 20px;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <h1>タスク管理</h1>
+
+        <!-- 入力フォームエリア -->
+        <div class="card input-group">
+            <input type="text" id="taskTitle" class="form-control" placeholder="タスクを入力..." required>
+            
+            <input type="text" id="taskCategory" class="form-control" list="categoryList" placeholder="カテゴリ (例: 仕事)">
+            <datalist id="categoryList">
+                <!-- JSで動的に追加 -->
+            </datalist>
+
+            <div class="row">
+                <select id="taskPriority" class="form-control">
+                    <option value="3">優先度: 高</option>
+                    <option value="2" selected>優先度: 中</option>
+                    <option value="1">優先度: 低</option>
+                </select>
+                <input type="date" id="taskDeadline" class="form-control">
+            </div>
+
+            <button class="btn btn-primary" onclick="addTask()">タスクを追加</button>
+        </div>
+
+        <!-- フィルタリング -->
+        <div class="filter-section" style="margin-bottom: 15px;">
+            <select id="filterCategory" class="form-control" onchange="renderTasks()">
+                <option value="all">すべてのカテゴリ</option>
+                <!-- JSで動的に追加 -->
+            </select>
+        </div>
+
+        <!-- タスクリスト -->
+        <ul id="taskList" class="task-list">
+            <!-- JSでタスクが表示されます -->
+        </ul>
+    </div>
+
+    <script>
+        // ストレージキー
+        const STORAGE_KEY_TASKS = 'todoApp_tasks';
+        const STORAGE_KEY_CATEGORIES = 'todoApp_categories';
+
+        // 状態管理
+        let tasks = [];
+        let categories = new Set(['仕事', 'プライベート', '買い物']);
+
+        // 初期化処理
+        window.onload = () => {
+            loadData();
+            updateCategoryOptions();
+            renderTasks();
+        };
+
+        // データをロードする関数
+        function loadData() {
+            const savedTasks = localStorage.getItem(STORAGE_KEY_TASKS);
+            if (savedTasks) {
+                tasks = JSON.parse(savedTasks);
+            }
+
+            const savedCategories = localStorage.getItem(STORAGE_KEY_CATEGORIES);
+            if (savedCategories) {
+                // 配列として保存されているのでSetに戻す
+                categories = new Set(JSON.parse(savedCategories));
+            }
+        }
+
+        // データを保存する関数
+        function saveData() {
+            localStorage.setItem(STORAGE_KEY_TASKS, JSON.stringify(tasks));
+            // Setは直接JSON化できないので配列に変換
+            localStorage.setItem(STORAGE_KEY_CATEGORIES, JSON.stringify([...categories]));
+        }
+
+        // タスクを追加する関数
+        function addTask() {
+            const titleInput = document.getElementById('taskTitle');
+            const categoryInput = document.getElementById('taskCategory');
+            const priorityInput = document.getElementById('taskPriority');
+            const deadlineInput = document.getElementById('taskDeadline');
+
+            const title = titleInput.value.trim();
+            const category = categoryInput.value.trim() || '未分類';
+            const priority = parseInt(priorityInput.value);
+            const deadline = deadlineInput.value;
+
+            if (!title) {
+                alert('タスク内容を入力してください');
+                return;
+            }
+
+            const newTask = {
+                id: Date.now(),
+                title: title,
+                category: category,
+                priority: priority,
+                deadline: deadline
+            };
+
+            tasks.push(newTask);
+            
+            // 新しいカテゴリなら追加
+            if (!categories.has(category)) {
+                categories.add(category);
+                updateCategoryOptions();
+            }
+
+            // データ保存
+            saveData();
+
+            // 入力欄をクリア
+            titleInput.value = '';
+            categoryInput.value = '';
+            deadlineInput.value = ''; // 日付クリア
+            priorityInput.value = '2'; // 優先度を中に戻す
+
+            renderTasks();
+        }
+
+        // タスクを削除する関数
+        function deleteTask(id) {
+            if(confirm('完了として削除しますか？')) {
+                tasks = tasks.filter(task => task.id !== id);
+                saveData(); // 保存
+                renderTasks();
+            }
+        }
+
+        // カテゴリの選択肢（入力履歴とフィルタ）を更新する関数
+        function updateCategoryOptions() {
+            const list = document.getElementById('categoryList');
+            const filter = document.getElementById('filterCategory');
+            
+            const currentFilter = filter.value;
+
+            list.innerHTML = '';
+            // フィルタの「すべて」以外を一旦クリア
+            while (filter.options.length > 1) {
+                filter.remove(1);
+            }
+
+            categories.forEach(cat => {
+                // 入力候補
+                const option = document.createElement('option');
+                option.value = cat;
+                list.appendChild(option);
+
+                // フィルタ
+                const filterOption = document.createElement('option');
+                filterOption.value = cat;
+                filterOption.textContent = cat;
+                filter.appendChild(filterOption);
+            });
+
+            filter.value = currentFilter;
+        }
+
+        function getPriorityText(level) {
+            if (level === 3) return '高';
+            if (level === 2) return '中';
+            return '低';
+        }
+
+        function getPriorityClass(level) {
+            if (level === 3) return 'priority-high';
+            if (level === 2) return 'priority-medium';
+            return 'priority-low';
+        }
+
+        // 日付フォーマット用（簡単化）
+        function formatDate(dateString) {
+            if (!dateString) return 'なし';
+            const date = new Date(dateString);
+            return `${date.getMonth() + 1}/${date.getDate()}`;
+        }
+
+        function renderTasks() {
+            const listContainer = document.getElementById('taskList');
+            const filterValue = document.getElementById('filterCategory').value;
+
+            listContainer.innerHTML = '';
+
+            // 1. フィルタリング
+            let filteredTasks = tasks.filter(task => {
+                if (filterValue === 'all') return true;
+                return task.category === filterValue;
+            });
+
+            // 2. ソート（優先度が高い順 → 締め切りが近い順）
+            filteredTasks.sort((a, b) => {
+                if (b.priority !== a.priority) {
+                    return b.priority - a.priority;
+                }
+                if (!a.deadline) return 1;
+                if (!b.deadline) return -1;
+                return new Date(a.deadline) - new Date(b.deadline);
+            });
+
+            // 3. 表示生成
+            if (filteredTasks.length === 0) {
+                listContainer.innerHTML = '<div style="text-align:center; color:#999; padding:20px;">タスクはありません</div>';
+                return;
+            }
+
+            filteredTasks.forEach(task => {
+                const li = document.createElement('li');
+                li.className = `task-item ${getPriorityClass(task.priority)}`;
+                
+                li.innerHTML = `
+                    <div class="task-content">
+                        <span class="task-title">${task.title}</span>
+                        <div class="task-meta">
+                            <span class="tag">${task.category}</span>
+                            <span>優先度: ${getPriorityText(task.priority)}</span>
+                            ${task.deadline ? `<span>📅 ${formatDate(task.deadline)}</span>` : ''}
+                        </div>
+                    </div>
+                    <button class="btn btn-danger" onclick="deleteTask(${task.id})">削除</button>
+                `;
+                listContainer.appendChild(li);
+            });
+        }
+    </script>
+</body>
+</html>
