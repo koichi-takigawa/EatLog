@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
@@ -31,11 +31,114 @@
             padding-bottom: 80px; /* 下部の余白（FAB用） */
         }
 
-        h1 {
-            text-align: center;
-            font-size: 1.5rem;
+        /* ヘッダー周りの修正 */
+        .app-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
             margin: 15px 0;
+            position: relative;
+        }
+
+        .app-header h1 {
+            font-size: 1.5rem;
+            margin: 0;
             color: #444;
+            flex-grow: 1;
+            text-align: center;
+            /* ハンバーガーメニューボタン分の余白を取って中央寄せに見せる調整 */
+            padding-left: 40px; 
+        }
+
+        /* ハンバーガーメニューボタン */
+        .menu-trigger {
+            background: none;
+            border: none;
+            font-size: 1.8rem;
+            cursor: pointer;
+            color: #444;
+            padding: 5px;
+            width: 40px;
+            text-align: right;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        /* サイドメニュー（ドロワー） */
+        .side-menu {
+            position: fixed;
+            top: 0;
+            right: 0;
+            width: 250px;
+            height: 100%;
+            background-color: white;
+            box-shadow: -2px 0 10px rgba(0,0,0,0.1);
+            transform: translateX(100%); /* 初期状態は画面外 */
+            transition: transform 0.3s ease;
+            z-index: 1000;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .side-menu.open {
+            transform: translateX(0);
+        }
+
+        .side-menu-header {
+            padding: 15px;
+            border-bottom: 1px solid #eee;
+            display: flex;
+            justify-content: flex-end;
+        }
+
+        .close-btn {
+            background: none;
+            border: none;
+            font-size: 1.5rem;
+            cursor: pointer;
+            padding: 5px;
+        }
+
+        .menu-items {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+
+        .menu-items li button {
+            width: 100%;
+            text-align: left;
+            padding: 15px 20px;
+            background: none;
+            border: none;
+            border-bottom: 1px solid #f0f0f0;
+            font-size: 1rem;
+            cursor: pointer;
+            color: #333;
+        }
+
+        .menu-items li button:active {
+            background-color: #f9f9f9;
+        }
+
+        /* オーバーレイ（背景暗転） */
+        .overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.4);
+            z-index: 999;
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.3s;
+        }
+
+        .overlay.open {
+            opacity: 1;
+            visibility: visible;
         }
 
         /* カード共通スタイル */
@@ -159,17 +262,31 @@
         .priority-high { border-left-color: #dc3545; }
         .priority-medium { border-left-color: #ffc107; }
         .priority-low { border-left-color: #28a745; }
-
-        /* スティッキーヘッダー的に使う場合などに備えて */
-        .app-header {
-            margin-bottom: 20px;
-        }
     </style>
 </head>
 <body>
 
+    <!-- ハンバーガーメニュー UI -->
+    <div class="overlay" id="menuOverlay" onclick="toggleMenu()"></div>
+    <div class="side-menu" id="sideMenu">
+        <div class="side-menu-header">
+            <button class="close-btn" onclick="toggleMenu()">×</button>
+        </div>
+        <ul class="menu-items">
+            <li><button onclick="exportJson()">データを保存 (JSON)</button></li>
+            <li><button onclick="triggerImport()">データを読込 (JSON)</button></li>
+        </ul>
+    </div>
+
+    <!-- ファイル読み込み用 (非表示) -->
+    <input type="file" id="importFile" style="display: none;" accept=".json" onchange="importJson(this)">
+
     <div class="container">
-        <h1>タスク管理</h1>
+        <!-- ヘッダーエリア変更 -->
+        <header class="app-header">
+            <h1>タスク管理</h1>
+            <button class="menu-trigger" onclick="toggleMenu()">☰</button>
+        </header>
 
         <!-- 入力フォームエリア -->
         <div class="card input-group">
@@ -221,6 +338,77 @@
             updateCategoryOptions();
             renderTasks();
         };
+
+        // メニューの開閉
+        function toggleMenu() {
+            const menu = document.getElementById('sideMenu');
+            const overlay = document.getElementById('menuOverlay');
+            menu.classList.toggle('open');
+            overlay.classList.toggle('open');
+        }
+
+        // JSONエクスポート処理
+        function exportJson() {
+            const data = {
+                tasks: tasks,
+                categories: [...categories] // Setを配列に変換
+            };
+            const jsonString = JSON.stringify(data, null, 2);
+            const blob = new Blob([jsonString], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `tasks_backup_${new Date().toISOString().slice(0,10)}.json`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+
+            toggleMenu(); // メニューを閉じる
+        }
+
+        // インポートトリガー
+        function triggerImport() {
+            document.getElementById('importFile').click();
+        }
+
+        // JSONインポート処理
+        function importJson(input) {
+            const file = input.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const json = JSON.parse(e.target.result);
+                    
+                    // 簡易バリデーション
+                    if (!json.tasks || !Array.isArray(json.categories)) {
+                        alert('無効なファイル形式です。');
+                        return;
+                    }
+
+                    if (confirm('現在のデータを上書きして読み込みますか？\n（この操作は取り消せません）')) {
+                        tasks = json.tasks;
+                        categories = new Set(json.categories);
+                        
+                        saveData();
+                        updateCategoryOptions();
+                        renderTasks();
+                        
+                        alert('データの読み込みが完了しました。');
+                    }
+                } catch (error) {
+                    console.error(error);
+                    alert('ファイルの読み込みに失敗しました。');
+                } finally {
+                    input.value = ''; // ファイル入力をリセット
+                    toggleMenu(); // メニューを閉じる
+                }
+            };
+            reader.readAsText(file);
+        }
 
         // データをロードする関数
         function loadData() {
