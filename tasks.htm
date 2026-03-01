@@ -3,582 +3,646 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>タスク管理アプリ</title>
+    <title>タスク管理</title>
     <style>
-        /* ベーススタイル */
+        /* --- CSS --- */
         :root {
-            --primary-color: #007bff;
-            --danger-color: #dc3545;
-            --bg-color: #f4f7f6;
-            --card-bg: #ffffff;
+            /* ライトテーマ（デフォルト）の変数定義 */
+            --bg-color: #f0f2f5;
             --text-color: #333;
-            --border-radius: 8px;
+            --card-bg: #fff;
+            --input-bg: #fafafa;
+            --input-border: #ccc;
+            --input-text: #333;
+            --shadow-color: rgba(0,0,0,0.1);
+            --header-border: #007bff;
+            --label-color: #555;
+            --sub-text: #666;
+            --border-light: #f0f0f0;
+            --menu-bg: #fff;
+            --modal-overlay: rgba(0,0,0,0.6);
+        }
+
+        /* ダークテーマの変数定義 */
+        body.dark-theme {
+            --bg-color: #18191a;
+            --text-color: #e4e6eb;
+            --card-bg: #242526;
+            --input-bg: #3a3b3c;
+            --input-border: #555;
+            --input-text: #e4e6eb;
+            --shadow-color: rgba(0,0,0,0.3);
+            --header-border: #4e9af1;
+            --label-color: #b0b3b8;
+            --sub-text: #b0b3b8;
+            --border-light: #3e4042;
+            --menu-bg: #242526;
+            --modal-overlay: rgba(0,0,0,0.8);
         }
 
         body {
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-            background-color: var(--bg-color);
             margin: 0;
-            padding: 0;
+            background-color: var(--bg-color);
             color: var(--text-color);
-            -webkit-tap-highlight-color: transparent;
+            padding-bottom: 50px;
+            transition: background-color 0.3s, color 0.3s;
         }
 
+        /* コンテナ */
         .container {
             max-width: 600px;
-            margin: 0 auto;
+            margin: auto;
             padding: 15px;
-            padding-bottom: 80px; /* 下部の余白（FAB用） */
         }
 
-        /* ヘッダー周りの修正 */
-        .app-header {
+        .app-title {
+            text-align: center;
+            font-size: 1.5rem;
+            margin: 15px 0 25px;
+            color: var(--text-color);
+            font-weight: bold;
+        }
+
+        h2 {
+            font-size: 1.2rem;
+            margin-bottom: 10px;
+            border-left: 4px solid var(--header-border);
+            padding-left: 8px;
+        }
+
+        /* 入力フォーム（縦一列） */
+        .input-form {
+            background: var(--card-bg);
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            box-shadow: 0 1px 3px var(--shadow-color);
+            transition: background-color 0.3s;
+        }
+
+        .form-group {
+            margin-bottom: 15px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+            font-size: 0.9rem;
+            color: var(--label-color);
+        }
+
+        /* 入力要素のスタイル */
+        input[type="date"],
+        input[type="text"],
+        select {
+            width: 100%;
+            padding: 12px;
+            font-size: 16px; /* ズーム防止 */
+            border: 1px solid var(--input-border);
+            border-radius: 6px;
+            box-sizing: border-box;
+            background-color: var(--input-bg);
+            color: var(--input-text);
+        }
+
+        .custom-category-input {
+            margin-top: 10px;
+            display: none;
+        }
+
+        /* 記録ボタン */
+        #submit-btn {
+            width: 100%;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 15px;
+            border-radius: 6px;
+            font-size: 18px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: background-color 0.2s;
+            margin-top: 10px;
+        }
+
+        #submit-btn:active {
+            background-color: #0056b3;
+            transform: translateY(1px);
+        }
+
+        /* 履歴リスト（タスクカード） */
+        .history-card {
+            background: var(--card-bg);
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 1px 3px var(--shadow-color);
+            margin-bottom: 10px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 15px;
+            transition: background-color 0.3s;
+        }
+
+        .history-info {
+            flex-grow: 1;
+        }
+
+        .task-header {
             display: flex;
             align-items: center;
-            justify-content: space-between;
-            margin: 15px 0;
-            position: relative;
+            gap: 10px;
+            margin-bottom: 5px;
         }
 
-        .app-header h1 {
-            font-size: 1.5rem;
-            margin: 0;
-            color: #444;
-            flex-grow: 1;
-            text-align: center;
-            /* ハンバーガーメニューボタン分の余白を取って中央寄せに見せる調整 */
-            padding-left: 40px; 
+        .urgency-badge {
+            padding: 3px 8px;
+            border-radius: 4px;
+            color: white;
+            font-size: 0.75rem;
+            font-weight: bold;
+        }
+        .urgency-high { background-color: #dc3545; }
+        .urgency-mid { background-color: #f39c12; }
+        .urgency-low { background-color: #28a745; }
+
+        .history-date {
+            font-size: 0.85rem;
+            color: var(--sub-text);
         }
 
-        /* ハンバーガーメニューボタン */
-        .menu-trigger {
-            background: none;
-            border: none;
-            font-size: 1.8rem;
+        .history-task-name {
+            font-weight: bold;
+            font-size: 1.1rem;
+            margin: 4px 0;
+            color: var(--text-color);
+        }
+        
+        .history-category {
+            display: inline-block;
+            font-size: 0.75rem;
+            color: var(--sub-text);
+            background-color: var(--border-light);
+            padding: 3px 8px;
+            border-radius: 12px;
+            margin-top: 4px;
+        }
+
+        .delete-btn {
+            background-color: var(--card-bg);
+            color: #dc3545;
+            border: 1px solid #dc3545;
+            padding: 8px 12px;
+            border-radius: 4px;
+            font-size: 0.8rem;
+            margin-left: 10px;
             cursor: pointer;
-            color: #444;
-            padding: 5px;
-            width: 40px;
-            text-align: right;
+        }
+
+        /* カテゴリフィルター */
+        .filter-section {
+            margin-bottom: 15px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        #category-filter {
+            width: auto;
+            padding: 8px;
+            min-width: 120px;
+        }
+
+        /* --- ハンバーガーメニューのスタイル --- */
+        .menu-btn {
+            position: fixed;
+            top: 15px;
+            right: 15px;
+            z-index: 1001;
+            background: #007bff;
+            color: white;
+            border: none;
+            width: 45px;
+            height: 45px;
+            border-radius: 50%;
+            font-size: 24px;
+            cursor: pointer;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.2);
             display: flex;
             align-items: center;
             justify-content: center;
         }
 
-        /* サイドメニュー（ドロワー） */
         .side-menu {
             position: fixed;
             top: 0;
-            right: 0;
-            width: 250px;
+            right: -280px;
+            width: 280px;
             height: 100%;
-            background-color: white;
-            box-shadow: -2px 0 10px rgba(0,0,0,0.1);
-            transform: translateX(100%); /* 初期状態は画面外 */
-            transition: transform 0.3s ease;
+            background: var(--menu-bg);
             z-index: 1000;
-            display: flex;
-            flex-direction: column;
+            transition: 0.3s;
+            box-shadow: -2px 0 10px rgba(0,0,0,0.1);
+            padding: 60px 20px 20px;
+            box-sizing: border-box;
+            color: var(--text-color);
         }
 
         .side-menu.open {
-            transform: translateX(0);
+            right: 0;
         }
 
-        .side-menu-header {
-            padding: 15px;
-            border-bottom: 1px solid #eee;
-            display: flex;
-            justify-content: flex-end;
-        }
-
-        .close-btn {
-            background: none;
-            border: none;
-            font-size: 1.5rem;
-            cursor: pointer;
-            padding: 5px;
-        }
-
-        .menu-items {
-            list-style: none;
-            padding: 0;
-            margin: 0;
-        }
-
-        .menu-items li button {
-            width: 100%;
-            text-align: left;
-            padding: 15px 20px;
-            background: none;
-            border: none;
-            border-bottom: 1px solid #f0f0f0;
-            font-size: 1rem;
-            cursor: pointer;
-            color: #333;
-        }
-
-        .menu-items li button:active {
-            background-color: #f9f9f9;
-        }
-
-        /* オーバーレイ（背景暗転） */
-        .overlay {
+        .menu-overlay {
             position: fixed;
             top: 0;
             left: 0;
             width: 100%;
             height: 100%;
-            background-color: rgba(0,0,0,0.4);
+            background: rgba(0,0,0,0.5);
             z-index: 999;
-            opacity: 0;
-            visibility: hidden;
-            transition: opacity 0.3s;
+            display: none;
         }
 
-        .overlay.open {
-            opacity: 1;
-            visibility: visible;
+        .menu-overlay.show {
+            display: block;
         }
 
-        /* カード共通スタイル */
-        .card {
-            background-color: var(--card-bg);
-            border-radius: var(--border-radius);
-            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
-            padding: 15px;
-            margin-bottom: 15px;
+        .side-menu h3 {
+            border-bottom: 2px solid #007bff;
+            padding-bottom: 10px;
+            margin-bottom: 20px;
+            font-size: 1.1rem;
         }
 
-        /* 入力フォーム */
-        .input-group {
-            display: flex;
-            flex-direction: column;
-            gap: 12px;
-        }
-
-        .form-control {
+        .menu-item-btn {
             width: 100%;
             padding: 12px;
-            border: 1px solid #ddd;
-            border-radius: var(--border-radius);
-            box-sizing: border-box;
-            font-size: 16px; /* スマホでズーム防止 */
-            appearance: none; /* iOSのデフォルトスタイル解除 */
-        }
-
-        .row {
-            display: flex;
-            gap: 10px;
-        }
-        
-        .row > * {
-            flex: 1;
-        }
-
-        /* ボタン */
-        .btn {
-            padding: 12px;
+            margin-bottom: 10px;
             border: none;
-            border-radius: var(--border-radius);
-            font-size: 1rem;
+            border-radius: 6px;
             font-weight: bold;
             cursor: pointer;
+            color: white;
             text-align: center;
-            transition: opacity 0.2s;
+            font-size: 14px;
         }
+        #export-btn-menu { background-color: #28a745; }
+        #import-btn-menu { background-color: #6c757d; }
+        #theme-toggle-btn { background-color: #343a40; }
 
-        .btn:active {
-            opacity: 0.8;
-        }
-
-        .btn-primary {
-            background-color: var(--primary-color);
-            color: white;
-            width: 100%;
-        }
-
-        .btn-danger {
-            background-color: var(--danger-color);
-            color: white;
-            padding: 8px 12px;
-            font-size: 0.9rem;
-            width: auto;
-        }
-
-        /* フィルタセクション */
-        .filter-section label {
-            display: block;
-            font-weight: bold;
-            margin-bottom: 5px;
-        }
-
-        /* タスクリスト */
-        .task-list {
-            list-style: none;
-            padding: 0;
-            margin: 0;
-        }
-
-        .task-item {
-            background-color: var(--card-bg);
-            border-radius: var(--border-radius);
-            box-shadow: 0 2px 4px rgba(0,0,0,0.03);
-            margin-bottom: 10px;
-            padding: 15px;
-            display: flex;
-            justify-content: space-between;
-            align-items: flex-start;
-            border-left: 6px solid transparent;
-        }
-
-        .task-content {
-            flex-grow: 1;
-            margin-right: 10px;
-        }
-
-        .task-title {
-            font-size: 1.1rem;
-            font-weight: bold;
-            margin-bottom: 5px;
-            display: block;
-        }
-
-        .task-meta {
-            font-size: 0.85rem;
-            color: #666;
-            display: flex;
-            flex-wrap: wrap;
-            gap: 8px;
-        }
-
-        .tag {
-            background-color: #eee;
-            padding: 2px 6px;
-            border-radius: 4px;
-        }
-
-        /* 優先度カラー */
-        .priority-high { border-left-color: #dc3545; }
-        .priority-medium { border-left-color: #ffc107; }
-        .priority-low { border-left-color: #28a745; }
     </style>
 </head>
 <body>
 
-    <!-- ハンバーガーメニュー UI -->
-    <div class="overlay" id="menuOverlay" onclick="toggleMenu()"></div>
-    <div class="side-menu" id="sideMenu">
-        <div class="side-menu-header">
-            <button class="close-btn" onclick="toggleMenu()">×</button>
+    <!-- ハンバーガーボタン -->
+    <button class="menu-btn" id="menu-toggle">☰</button>
+
+    <!-- オーバーレイ -->
+    <div class="menu-overlay" id="menu-overlay"></div>
+
+    <!-- サイドメニュー本体 -->
+    <nav class="side-menu" id="side-menu">
+        <h3>メニュー</h3>
+        <button id="theme-toggle-btn" class="menu-item-btn">ダークモード切替</button>
+        <button id="export-btn-menu" class="menu-item-btn">JSONを保存 (バックアップ)</button>
+        <button id="import-btn-menu" class="menu-item-btn">JSONを読込 (復元)</button>
+        <input type="file" id="import-file-input" style="display: none;" accept=".json">
+        
+        <div style="margin-top: 30px; font-size: 0.8rem; color: #888;">
+            <p>※保存したJSONファイルは、機種変更時のデータ移行などに使用できます。</p>
         </div>
-        <ul class="menu-items">
-            <li><button onclick="exportJson()">データを保存 (JSON)</button></li>
-            <li><button onclick="triggerImport()">データを読込 (JSON)</button></li>
-        </ul>
-    </div>
-
-    <!-- ファイル読み込み用 (非表示) -->
-    <input type="file" id="importFile" style="display: none;" accept=".json" onchange="importJson(this)">
-
+    </nav>
+    
     <div class="container">
-        <!-- ヘッダーエリア変更 -->
-        <header class="app-header">
-            <h1>タスク管理</h1>
-            <button class="menu-trigger" onclick="toggleMenu()">☰</button>
-        </header>
+        <div class="app-title">タスク管理</div>
 
-        <!-- 入力フォームエリア -->
-        <div class="card input-group">
-            <input type="text" id="taskTitle" class="form-control" placeholder="タスクを入力..." required>
-            
-            <input type="text" id="taskCategory" class="form-control" list="categoryList" placeholder="カテゴリ (例: 仕事)">
-            <datalist id="categoryList">
-                <!-- JSで動的に追加 -->
-            </datalist>
+        <!-- 入力フォーム -->
+        <div class="input-form">
+            <h2>新規タスク追加</h2>
+            <form id="record-form">
+                
+                <div class="form-group">
+                    <label>タスク内容</label>
+                    <input type="text" id="detail" placeholder="例: 牛乳を買う、資料作成など" required>
+                </div>
 
-            <div class="row">
-                <select id="taskPriority" class="form-control">
-                    <option value="3">優先度: 高</option>
-                    <option value="2" selected>優先度: 中</option>
-                    <option value="1">優先度: 低</option>
-                </select>
-                <input type="date" id="taskDeadline" class="form-control">
+                <div class="form-group">
+                    <label>緊急度</label>
+                    <select id="urgency">
+                        <option value="3">高</option>
+                        <option value="2" selected>中</option>
+                        <option value="1">低</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label>期日 (任意)</label>
+                    <input type="date" id="date">
+                </div>
+
+                <div class="form-group">
+                    <label>カテゴリ</label>
+                    <select id="category" required></select>
+                    <input type="text" id="custom-category" class="custom-category-input" placeholder="新しいカテゴリを入力">
+                </div>
+
+                <button type="submit" id="submit-btn">追加する</button>
+            </form>
+        </div>
+        
+        <!-- タスク一覧 -->
+        <div class="history-section">
+            <div class="filter-section">
+                <h2>タスク一覧</h2>
+                <select id="category-filter"></select>
             </div>
 
-            <button class="btn btn-primary" onclick="addTask()">タスクを追加</button>
+            <div id="history-list">
+                <!-- ここにタスクカードが追加されます -->
+            </div>
         </div>
-
-        <!-- フィルタリング -->
-        <div class="filter-section" style="margin-bottom: 15px;">
-            <select id="filterCategory" class="form-control" onchange="renderTasks()">
-                <option value="all">すべてのカテゴリ</option>
-                <!-- JSで動的に追加 -->
-            </select>
-        </div>
-
-        <!-- タスクリスト -->
-        <ul id="taskList" class="task-list">
-            <!-- JSでタスクが表示されます -->
-        </ul>
     </div>
 
     <script>
-        // ストレージキー
-        const STORAGE_KEY_TASKS = 'todoApp_tasks';
-        const STORAGE_KEY_CATEGORIES = 'todoApp_categories';
+    document.addEventListener('DOMContentLoaded', () => {
+        // --- 設定・データ ---
+        // カテゴリの初期データ（ローカルストレージに保存されていればそれを読み込む）
+        let savedCategories = JSON.parse(localStorage.getItem('taskCategories')) || ['プライベート', '買い物'];
+        let records = JSON.parse(localStorage.getItem('taskRecords')) || [];
+        let isDarkTheme = localStorage.getItem('taskDarkTheme') === 'true'; 
 
-        // 状態管理
-        let tasks = [];
-        let categories = new Set(['仕事', 'プライベート', '買い物']);
+        // --- DOM要素 ---
+        const detailInput = document.getElementById('detail');
+        const urgencySelect = document.getElementById('urgency');
+        const dateInput = document.getElementById('date');
+        const categorySelect = document.getElementById('category');
+        const customCategoryInput = document.getElementById('custom-category');
+        const form = document.getElementById('record-form');
+        const historyList = document.getElementById('history-list');
+        const categoryFilter = document.getElementById('category-filter');
+        const themeToggleBtn = document.getElementById('theme-toggle-btn');
 
-        // 初期化処理
-        window.onload = () => {
-            loadData();
+        // --- 初期化処理 ---
+        const init = () => {
+            if (isDarkTheme) {
+                document.body.classList.add('dark-theme');
+                themeToggleBtn.textContent = 'ライトモード切替';
+            }
             updateCategoryOptions();
-            renderTasks();
+            updateCategoryFilter();
+            renderAll();
         };
 
-        // メニューの開閉
-        function toggleMenu() {
-            const menu = document.getElementById('sideMenu');
-            const overlay = document.getElementById('menuOverlay');
-            menu.classList.toggle('open');
-            overlay.classList.toggle('open');
-        }
+        // --- テーマ切り替え処理 ---
+        themeToggleBtn.addEventListener('click', () => {
+            isDarkTheme = !isDarkTheme;
+            if (isDarkTheme) {
+                document.body.classList.add('dark-theme');
+                themeToggleBtn.textContent = 'ライトモード切替';
+            } else {
+                document.body.classList.remove('dark-theme');
+                themeToggleBtn.textContent = 'ダークモード切替';
+            }
+            localStorage.setItem('taskDarkTheme', isDarkTheme);
+            toggleMenu(); 
+        });
 
-        // JSONエクスポート処理
-        function exportJson() {
-            const data = {
-                tasks: tasks,
-                categories: [...categories] // Setを配列に変換
-            };
-            const jsonString = JSON.stringify(data, null, 2);
-            const blob = new Blob([jsonString], { type: 'application/json' });
-            const url = URL.createObjectURL(blob);
+        // 1. カテゴリ選択肢の更新
+        const updateCategoryOptions = () => {
+            categorySelect.innerHTML = '';
             
+            // 保存済みのカテゴリを展開
+            savedCategories.forEach(cat => {
+                const opt = document.createElement('option');
+                opt.value = cat;
+                opt.textContent = cat;
+                categorySelect.appendChild(opt);
+            });
+            
+            // 「その他」を最後に追加
+            const optOther = document.createElement('option');
+            optOther.value = 'その他';
+            optOther.textContent = 'その他（直接入力）';
+            categorySelect.appendChild(optOther);
+        };
+
+        // 2. カテゴリフィルター選択肢の更新
+        const updateCategoryFilter = () => {
+            const currentSel = categoryFilter.value;
+            categoryFilter.innerHTML = '<option value="all">すべて表示</option>';
+
+            savedCategories.forEach(cat => {
+                const opt = document.createElement('option');
+                opt.value = cat;
+                opt.textContent = cat;
+                categoryFilter.appendChild(opt);
+            });
+
+            if (currentSel && savedCategories.includes(currentSel)) {
+                categoryFilter.value = currentSel;
+            } else {
+                categoryFilter.value = 'all';
+            }
+        };
+
+        // 「その他」が選ばれたときの入力欄表示切り替え
+        categorySelect.addEventListener('change', (e) => {
+            if (e.target.value === 'その他') {
+                customCategoryInput.style.display = 'block';
+                customCategoryInput.required = true;
+            } else {
+                customCategoryInput.style.display = 'none';
+                customCategoryInput.required = false;
+            }
+        });
+
+        // 3. 全体の描画（リスト）
+        const renderAll = () => {
+            let selectedCategory = categoryFilter.value;
+            
+            // フィルタリング処理
+            let filteredRecords = records;
+            if (selectedCategory !== 'all') {
+                filteredRecords = records.filter(r => r.category === selectedCategory);
+            }
+
+            // 並べ替え処理（緊急度 → 日時の順）
+            filteredRecords.sort((a, b) => {
+                // 1. 緊急度（降順: 高3 → 中2 → 低1）
+                if (b.urgency !== a.urgency) {
+                    return b.urgency - a.urgency;
+                }
+                
+                // 2. 日時（昇順: 早い順）
+                if (!a.date && !b.date) return 0;
+                if (!a.date) return 1;  // 日時未設定は後ろに
+                if (!b.date) return -1; // 日時未設定は後ろに
+                return new Date(a.date) - new Date(b.date);
+            });
+
+            renderHistoryList(filteredRecords);
+        };
+
+        // リスト描画
+        const renderHistoryList = (data) => {
+            historyList.innerHTML = '';
+            
+            if (data.length === 0) {
+                historyList.innerHTML = '<p style="text-align:center; color:var(--sub-text);">タスクはありません</p>';
+                return;
+            }
+
+            data.forEach(record => {
+                // 緊急度のバッジ設定
+                let urgencyText = '低';
+                let urgencyClass = 'urgency-low';
+                if (record.urgency == 3) {
+                    urgencyText = '高';
+                    urgencyClass = 'urgency-high';
+                } else if (record.urgency == 2) {
+                    urgencyText = '中';
+                    urgencyClass = 'urgency-mid';
+                }
+
+                // 日付表示（未入力対応）
+                const dateText = record.date ? `期日: ${record.date}` : '期日なし';
+
+                const div = document.createElement('div');
+                div.className = 'history-card';
+                div.innerHTML = `
+                    <div class="history-info">
+                        <div class="task-header">
+                            <span class="urgency-badge ${urgencyClass}">${urgencyText}</span>
+                            <span class="history-date">${dateText}</span>
+                        </div>
+                        <div class="history-task-name">${record.detail}</div>
+                        <div class="history-category">${record.category}</div>
+                    </div>
+                    <button class="delete-btn" onclick="deleteRecord(${record.id})">完了/削除</button>
+                `;
+                historyList.appendChild(div);
+            });
+        };
+
+        // --- イベントリスナー ---
+        
+        // フォーム送信（新規追加）
+        form.addEventListener('submit', (e) => {
+            e.preventDefault();
+
+            // カテゴリの決定（その他の場合は直接入力値を採用し、リストに保存）
+            let finalCategory = categorySelect.value;
+            if (finalCategory === 'その他') {
+                finalCategory = customCategoryInput.value.trim();
+                
+                // 新しいカテゴリを保存
+                if (finalCategory && !savedCategories.includes(finalCategory)) {
+                    savedCategories.push(finalCategory);
+                    localStorage.setItem('taskCategories', JSON.stringify(savedCategories));
+                    updateCategoryOptions();
+                    updateCategoryFilter();
+                }
+            }
+
+            const newRecord = {
+                id: Date.now(),
+                detail: detailInput.value,
+                urgency: parseInt(urgencySelect.value, 10),
+                date: dateInput.value,
+                category: finalCategory
+            };
+            
+            records.push(newRecord);
+            localStorage.setItem('taskRecords', JSON.stringify(records));
+            
+            // 入力リセット
+            detailInput.value = '';
+            dateInput.value = '';
+            urgencySelect.value = '2';
+            categorySelect.value = savedCategories[0]; // 最初のカテゴリに戻す
+            customCategoryInput.value = '';
+            customCategoryInput.style.display = 'none';
+            customCategoryInput.required = false;
+            
+            renderAll();
+        });
+
+        // 削除機能（グローバル関数として定義）
+        window.deleteRecord = (id) => {
+            if (!confirm('このタスクを完了(削除)しますか？')) return;
+            records = records.filter(r => r.id !== id);
+            localStorage.setItem('taskRecords', JSON.stringify(records));
+            renderAll();
+        };
+
+        // フィルター変更時
+        categoryFilter.addEventListener('change', renderAll);
+
+        // --- ハンバーガーメニューの制御 ---
+        const menuToggle = document.getElementById('menu-toggle');
+        const sideMenu = document.getElementById('side-menu');
+        const menuOverlay = document.getElementById('menu-overlay');
+
+        const toggleMenu = () => {
+            sideMenu.classList.toggle('open');
+            menuOverlay.classList.toggle('show');
+            menuToggle.textContent = sideMenu.classList.contains('open') ? '✕' : '☰';
+        };
+
+        menuToggle.addEventListener('click', toggleMenu);
+        menuOverlay.addEventListener('click', toggleMenu);
+        
+        // --- データ管理機能（メニュー内のボタンと連動） ---
+        const fileInput = document.getElementById('import-file-input');
+
+        // エクスポート処理
+        document.getElementById('export-btn-menu').addEventListener('click', () => {
+            const fileName = `tasks_backup_${new Date().toISOString().slice(0, 10)}.json`;
+            const data = { records, savedCategories, exportedAt: new Date().toLocaleString() };
+            const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
-            a.download = `tasks_backup_${new Date().toISOString().slice(0,10)}.json`;
-            document.body.appendChild(a);
+            a.download = fileName;
             a.click();
-            document.body.removeChild(a);
             URL.revokeObjectURL(url);
+            alert(`バックアップを保存しました。\nファイル名: ${fileName}`);
+            toggleMenu();
+        });
 
-            toggleMenu(); // メニューを閉じる
-        }
-
-        // インポートトリガー
-        function triggerImport() {
-            document.getElementById('importFile').click();
-        }
-
-        // JSONインポート処理
-        function importJson(input) {
-            const file = input.files[0];
+        // イ��ポート処理
+        document.getElementById('import-btn-menu').addEventListener('click', () => fileInput.click());
+        fileInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
             if (!file) return;
-
             const reader = new FileReader();
-            reader.onload = function(e) {
+            reader.onload = (event) => {
                 try {
-                    const json = JSON.parse(e.target.result);
-                    
-                    // 簡易バリデーション
-                    if (!json.tasks || !Array.isArray(json.categories)) {
-                        alert('無効なファイル形式です。');
-                        return;
-                    }
-
-                    if (confirm('現在のデータを上書きして読み込みますか？\n（この操作は取り消せません）')) {
-                        tasks = json.tasks;
-                        categories = new Set(json.categories);
+                    const data = JSON.parse(event.target.result);
+                    if (data.records && confirm('データを上書きして復元しますか？')) {
+                        records = data.records;
+                        if (data.savedCategories) savedCategories = data.savedCategories;
                         
-                        saveData();
+                        localStorage.setItem('taskRecords', JSON.stringify(records));
+                        localStorage.setItem('taskCategories', JSON.stringify(savedCategories));
+                        
                         updateCategoryOptions();
-                        renderTasks();
-                        
-                        alert('データの読み込みが完了しました。');
+                        updateCategoryFilter();
+                        renderAll();
+                        alert('完了しました');
+                        toggleMenu();
                     }
-                } catch (error) {
-                    console.error(error);
-                    alert('ファイルの読み込みに失敗しました。');
-                } finally {
-                    input.value = ''; // ファイル入力をリセット
-                    toggleMenu(); // メニューを閉じる
-                }
+                } catch (err) { alert('読み込みに失敗しました。'); }
+                fileInput.value = '';
             };
             reader.readAsText(file);
-        }
+        });
 
-        // データをロードする関数
-        function loadData() {
-            const savedTasks = localStorage.getItem(STORAGE_KEY_TASKS);
-            if (savedTasks) {
-                tasks = JSON.parse(savedTasks);
-            }
-
-            const savedCategories = localStorage.getItem(STORAGE_KEY_CATEGORIES);
-            if (savedCategories) {
-                // 配列として保存されているのでSetに戻す
-                categories = new Set(JSON.parse(savedCategories));
-            }
-        }
-
-        // データを保存する関数
-        function saveData() {
-            localStorage.setItem(STORAGE_KEY_TASKS, JSON.stringify(tasks));
-            // Setは直接JSON化できないので配列に変換
-            localStorage.setItem(STORAGE_KEY_CATEGORIES, JSON.stringify([...categories]));
-        }
-
-        // タスクを追加する関数
-        function addTask() {
-            const titleInput = document.getElementById('taskTitle');
-            const categoryInput = document.getElementById('taskCategory');
-            const priorityInput = document.getElementById('taskPriority');
-            const deadlineInput = document.getElementById('taskDeadline');
-
-            const title = titleInput.value.trim();
-            const category = categoryInput.value.trim() || '未分類';
-            const priority = parseInt(priorityInput.value);
-            const deadline = deadlineInput.value;
-
-            if (!title) {
-                alert('タスク内容を入力してください');
-                return;
-            }
-
-            const newTask = {
-                id: Date.now(),
-                title: title,
-                category: category,
-                priority: priority,
-                deadline: deadline
-            };
-
-            tasks.push(newTask);
-            
-            // 新しいカテゴリなら追加
-            if (!categories.has(category)) {
-                categories.add(category);
-                updateCategoryOptions();
-            }
-
-            // データ保存
-            saveData();
-
-            // 入力欄をクリア
-            titleInput.value = '';
-            categoryInput.value = '';
-            deadlineInput.value = ''; // 日付クリア
-            priorityInput.value = '2'; // 優先度を中に戻す
-
-            renderTasks();
-        }
-
-        // タスクを削除する関数
-        function deleteTask(id) {
-            if(confirm('完了として削除しますか？')) {
-                tasks = tasks.filter(task => task.id !== id);
-                saveData(); // 保存
-                renderTasks();
-            }
-        }
-
-        // カテゴリの選択肢（入力履歴とフィルタ）を更新する関数
-        function updateCategoryOptions() {
-            const list = document.getElementById('categoryList');
-            const filter = document.getElementById('filterCategory');
-            
-            const currentFilter = filter.value;
-
-            list.innerHTML = '';
-            // フィルタの「すべて」以外を一旦クリア
-            while (filter.options.length > 1) {
-                filter.remove(1);
-            }
-
-            categories.forEach(cat => {
-                // 入力候補
-                const option = document.createElement('option');
-                option.value = cat;
-                list.appendChild(option);
-
-                // フィルタ
-                const filterOption = document.createElement('option');
-                filterOption.value = cat;
-                filterOption.textContent = cat;
-                filter.appendChild(filterOption);
-            });
-
-            filter.value = currentFilter;
-        }
-
-        function getPriorityText(level) {
-            if (level === 3) return '高';
-            if (level === 2) return '中';
-            return '低';
-        }
-
-        function getPriorityClass(level) {
-            if (level === 3) return 'priority-high';
-            if (level === 2) return 'priority-medium';
-            return 'priority-low';
-        }
-
-        // 日付フォーマット用（簡単化）
-        function formatDate(dateString) {
-            if (!dateString) return 'なし';
-            const date = new Date(dateString);
-            return `${date.getMonth() + 1}/${date.getDate()}`;
-        }
-
-        function renderTasks() {
-            const listContainer = document.getElementById('taskList');
-            const filterValue = document.getElementById('filterCategory').value;
-
-            listContainer.innerHTML = '';
-
-            // 1. フィルタリング
-            let filteredTasks = tasks.filter(task => {
-                if (filterValue === 'all') return true;
-                return task.category === filterValue;
-            });
-
-            // 2. ソート（優先度が高い順 → 締め切りが近い順）
-            filteredTasks.sort((a, b) => {
-                if (b.priority !== a.priority) {
-                    return b.priority - a.priority;
-                }
-                if (!a.deadline) return 1;
-                if (!b.deadline) return -1;
-                return new Date(a.deadline) - new Date(b.deadline);
-            });
-
-            // 3. 表示生成
-            if (filteredTasks.length === 0) {
-                listContainer.innerHTML = '<div style="text-align:center; color:#999; padding:20px;">タスクはありません</div>';
-                return;
-            }
-
-            filteredTasks.forEach(task => {
-                const li = document.createElement('li');
-                li.className = `task-item ${getPriorityClass(task.priority)}`;
-                
-                li.innerHTML = `
-                    <div class="task-content">
-                        <span class="task-title">${task.title}</span>
-                        <div class="task-meta">
-                            <span class="tag">${task.category}</span>
-                            <span>優先度: ${getPriorityText(task.priority)}</span>
-                            ${task.deadline ? `<span>📅 ${formatDate(task.deadline)}</span>` : ''}
-                        </div>
-                    </div>
-                    <button class="btn btn-danger" onclick="deleteTask(${task.id})">削除</button>
-                `;
-                listContainer.appendChild(li);
-            });
-        }
+        // 開始
+        init();
+    });
     </script>
 </body>
 </html>
