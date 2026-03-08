@@ -118,17 +118,18 @@ const GAS_URL = "https://script.google.com/macros/s/AKfycbxHUe1CVM7QdS6p-ged99y7
 
 const foodConfigs = [
     { id: 'bean',     name: '豆', guide: '100g単位', info: '植物性たんぱく質と食物繊維が豊富です。',           p: 15,   f: 6,   c: 30,  i: 110, type: 'g' },
-    { id: 'meat',     name: '肉類', guide: '100g単位', info: '動物性たんぱく質の主役。部位により脂質が変動。', p: 20,   f: 12,  c: 0,   i: 0, type: 'g' },
     { id: 'natto',    name: '納豆', guide: '1パック45g', info: '発酵食品。血液サラサラ成分ナットウキナーゼ。', p: 16.5, f: 10,  c: 12,  i: 35, type: 'radio', opts: [{l:'なし',v:0},{l:'たべた',v:45}] },
+    { id: 'kinako',   name: 'きな粉', guide: '100g単位', info: '大豆を丸ごと粉末に。大豆イソフラボン。',       p: 35,   f: 23,  c: 30,  i: 200, type: 'g' },
+    { id: 'smilk',    name: '豆乳', guide: '100g単位', info: 'コレステロールゼロの植物性ミルク。',             p: 3.6,  f: 2,   c: 1.8, i: 38, type: 'g' },
+    { id: 'tofu',     name: '豆腐', guide: '100g単位', info: 'とうふ。',                                       p: 6.2,  f: 4.2, c: 1.8, i: 23, type: 'g' },
+    { id: 'milk',     name: '牛乳', guide: '100g単位', info: '吸収の良いカルシウム源。',                       p: 3.3,  f: 3.8, c: 4.8, i: 0, type: 'g' },
+    { id: 'cheese',   name: 'チーズ', guide: '20g（1個分）', info: 'たんぱく質と脂質が凝縮された食品。',       p: 25,   f: 25,  c: 1.5, i: 0, type: 'radio', opts: [{l:'なし',v:0},{l:'たべた',v:20}] },
 //    { id: 'yogurt',   name: 'ヨーグルト', guide: '100g単位', info: '乳酸菌で腸内環境を整えます。',             p: 3.5,  f: 3,   c: 5,   i: 0, type: 'g' },
     { id: 'gyogurt',  name: 'ギリシャヨーグルト', guide: '100g単位', info: '通常の3倍のたんぱく質、低脂質。',  p: 10,   f: 0.2, c: 4,   i: 9, type: 'g' },
-    { id: 'kinako',   name: 'きな粉', guide: '100g単位', info: '大豆を丸ごと粉末に。大豆イソフラボン。',       p: 35,   f: 23,  c: 30,  i: 200, type: 'g' },
-    { id: 'milk',     name: '牛乳', guide: '100g単位', info: '吸収の良いカルシウム源。',                       p: 3.3,  f: 3.8, c: 4.8, i: 0, type: 'g' },
-    { id: 'smilk',    name: '豆乳', guide: '100g単位', info: 'コレステロールゼロの植物性ミルク。',             p: 3.6,  f: 2,   c: 1.8, i: 38, type: 'g' },
-    { id: 'cheese',   name: 'チーズ', guide: '20g（1個分）', info: 'たんぱく質と脂質が凝縮された食品。',       p: 25,   f: 25,  c: 1.5, i: 0, type: 'radio', opts: [{l:'なし',v:0},{l:'たべた',v:20}] },
-    { id: 'shirasu',  name: 'しらす大匙1', guide: '約5g', info: '小魚を丸ごと。カルシウム補給に。',            p: 23,   f: 1,   c: 0,   i: 0, type: 'radio', opts: [{l:'なし',v:0},{l:'たべた',v:5}] },
+    { id: 'meat',     name: '肉類', guide: '100g単位', info: '動物性たんぱく質の主役。部位により脂質が変動。', p: 20,   f: 12,  c: 0,   i: 0, type: 'g' },
     { id: 'fish',     name: '魚介類', guide: '切り身1切れ目安', info: '良質な油（DHA/EPA）が含まれます。',     p: 20,   f: 8,   c: 0,   i: 0, type: 'radio', opts: [{l:'0g',v:0},{l:'50g',v:50},{l:'100g',v:100}] },
-    { id: 'egg',      name: 'たまご', guide: '1個50g', info: '全ての必須アミノ酸を含む完全栄養食。',           p: 12,   f: 10,  c: 0.4, i: 0, type: 'radio', opts: [{l:'0個',v:0},{l:'0.5個',v:25},{l:'1個',v:50}] }
+    { id: 'shirasu',  name: 'しらす大匙1', guide: '約5g', info: '小魚を丸ごと。カルシウム補給に。',            p: 23,   f: 1,   c: 0,   i: 0, type: 'radio', opts: [{l:'なし',v:0},{l:'たべた',v:5}] },
+    { id: 'egg',      name: 'たまご', guide: '1個50g', info: '全ての必須アミノ酸を含む完全栄養食。',           p: 12,   f: 10,  c: 0.4, i: 0, type: 'radio', opts: [{l:'0個',v:0},{l:'0.5個',v:25},{l:'1個',v:50}] },
 ];
 
 // B構成（野菜・海藻・きのこ・オイルがスコア対象）
