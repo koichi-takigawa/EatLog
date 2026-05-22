@@ -1,0 +1,108 @@
+/* 横長・タブレット向け追加スタイル */
+@media screen and (min-width: 768px) {
+  body {
+    padding-bottom: 24px;
+  }
+
+  .chart-section {
+    position: static;
+    margin: 20px auto 16px;
+    max-width: 1200px;
+    border-radius: 12px;
+  }
+
+  .chart-container {
+    max-width: 100%;
+    height: 260px;
+  }
+
+  .container {
+    max-width: 1200px;
+    padding: 20px;
+    display: grid;
+    grid-template-columns: 380px 1fr;
+    gap: 20px;
+    align-items: start;
+  }
+
+  .input-form {
+    position: sticky;
+    top: 20px;
+    margin-bottom: 0;
+  }
+
+  #monthly-summary {
+    margin-bottom: 16px;
+  }
+
+  .history-section {
+    min-width: 0;
+  }
+
+  .filter-section {
+    gap: 16px;
+  }
+
+  #month-filter {
+    width: auto;
+    min-width: 180px;
+  }
+
+  .history-card {
+    padding: 18px;
+  }
+
+  .history-amount {
+    font-size: 1.2rem;
+  }
+
+  .side-menu {
+    width: 320px;
+    right: -320px;
+  }
+
+  .modal-content {
+    max-width: 420px;
+  }
+}
+
+@media screen and (min-width: 1024px) and (orientation: landscape) {
+  .chart-section {
+    display: grid;
+    grid-template-columns: 320px 1fr;
+    gap: 20px;
+    align-items: center;
+    text-align: left;
+    padding: 16px 20px;
+  }
+
+  .chart-container {
+    height: 280px;
+  }
+
+  #simple-summary {
+    font-size: 1rem;
+    margin-top: 0 !important;
+  }
+
+  .container {
+    grid-template-columns: 400px 1fr;
+    gap: 24px;
+  }
+
+  .input-form {
+    padding: 24px;
+  }
+
+  .monthly-summary-card {
+    padding: 20px 24px;
+  }
+
+  .summary-row {
+    font-size: 1rem;
+  }
+
+  .summary-row:last-child {
+    font-size: 1.2rem;
+  }
+}
