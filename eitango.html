@@ -1,9 +1,9 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>英単語暗記アプリ - 見やすさ改善版</title>
+    <title>英単語暗記アプリ - 間隔反復(SRS)版</title>
     <style>
         body {
             font-family: 'Helvetica Neue', Arial, sans-serif;
@@ -145,11 +145,11 @@
 <div class="container">
     <div id="page-1">
         <h1>英単語テスト (10問)</h1>
-        <p class="info-text">手元の「紙」に英語で回答を記入してください。</p>
+        <p id="candidate-count" class="info-text">復習予定の単語を読み込み中...</p>
         
         <div id="question-list"></div>
 
-        <button class="btn-action" onclick="goToPage2()">すべての回答を終了して答え合わせへ</button>
+        <button id="btn-to-page2" class="btn-action" onclick="goToPage2()">すべての回答を終了して答え合わせへ</button>
     </div>
 
     <div id="page-2" class="hidden">
@@ -164,37 +164,80 @@
     <div id="page-3" class="hidden">
         <h1>記録完了</h1>
         <div class="result-message">🎉 今回のテスト結果をDBに記録しました！</div>
-        <p class="info-text">出題頻度が調整され、苦手な単語が出やすくなります。</p>
+        <p class="info-text">正解した単語の間隔が引き延ばされ、次回出題が先になります。</p>
         
         <button class="btn-action" onclick="restartTest()">次の10問を実施する</button>
     </div>
 </div>
 
 <script>
-// 仕様(1): 出題頻度算出のためのデータ構造（ダミーDB）
+// ヘルパー関数: 指定日後の日付オブジェクト（時刻なし）を返す
+function getFutureDate(days) {
+    let d = new Date();
+    d.setHours(0, 0, 0, 0); // 時刻をゼロクリアして日付のみで比較できるようにする
+    d.setDate(d.getDate() + days);
+    return d;
+}
+
+// 仕様(1) + 間隔反復仕様のダミーDB
+// テストのため、一部はすでに「復習予定日（過去日）」を迎えている設定にしています
 let wordDatabase = [
-    { id: 1, en: "apple", jp: "りんご", history: { correct: 2, incorrect: 1 } },
-    { id: 2, en: "environment", jp: "環境", history: { correct: 0, incorrect: 3 } },
-    { id: 3, en: "consequence", jp: "結果、結論", history: { correct: 1, incorrect: 0 } },
-    { id: 4, en: "improve", jp: "改善する、向上させる", history: { correct: 5, incorrect: 2 } },
-    { id: 5, en: "simultaneously", jp: "同時に", history: { correct: 0, incorrect: 0 } },
-    { id: 6, en: "negotiate", jp: "交渉する", history: { correct: 3, incorrect: 1 } },
-    { id: 7, en: "vulnerable", jp: "脆弱な、傷つきやすい", history: { correct: 1, incorrect: 4 } },
-    { id: 8, en: "foster", jp: "育成する、促進する", history: { correct: 2, incorrect: 0 } },
-    { id: 9, en: "loyal", jp: "忠実な、誠実な", history: { correct: 4, incorrect: 2 } },
-    { id: 10, en: "significant", jp: "重要な、かなりの", history: { correct: 3, incorrect: 0 } }
+    { id: 1, en: "apple", jp: "りんご", interval: 1, nextDate: getFutureDate(-2) }, // 2日前に予定日超過
+    { id: 2, en: "environment", jp: "環境", interval: 1, nextDate: getFutureDate(-1) },
+    { id: 3, en: "consequence", jp: "結果、結論", interval: 2, nextDate: getFutureDate(-3) },
+    { id: 4, en: "improve", jp: "改善する、向上させる", interval: 4, nextDate: getFutureDate(-5) },
+    { id: 5, en: "simultaneously", jp: "同時に", interval: 1, nextDate: getFutureDate(0) },  // 今日が予定日
+    { id: 6, en: "negotiate", jp: "交渉する", interval: 1, nextDate: getFutureDate(-1) },
+    { id: 7, en: "vulnerable", jp: "脆弱な、傷つきやすい", interval: 1, nextDate: getFutureDate(-2) },
+    { id: 8, en: "foster", jp: "育成する、促進する", interval: 2, nextDate: getFutureDate(-1) },
+    { id: 9, en: "loyal", jp: "忠実な、誠実な", interval: 1, nextDate: getFutureDate(-4) },
+    { id: 10, en: "significant", jp: "重要な、かなりの", interval: 1, nextDate: getFutureDate(-1) },
+    { id: 11, en: "artificial", jp: "人工的な", interval: 8, nextDate: getFutureDate(5) },  // 5日後まで出ない
+    { id: 12, en: "perspective", jp: "視点、見方", interval: 16, nextDate: getFutureDate(12) } // 12日後まで出ない
 ];
 
 let currentTestWords = [];
 let tempSelections = {};
 
-// アプリ初期化：テスト開始
+// アプリ初期化：間隔反復ロジックに基づくテスト生成
 function startTest() {
-    currentTestWords = [...wordDatabase].slice(0, 10);
     tempSelections = {}; 
+    
+    // 今日の日付（時刻ゼロクリア）
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
 
+    // 1. 日付が予定日を超えている（今日を含む過去）の単語をフィルタリング
+    let candidates = wordDatabase.filter(word => {
+        const nextDateObj = new Date(word.nextDate);
+        return nextDateObj <= today;
+    });
+
+    // 画面に対象単語数を表示
+    const countText = document.getElementById('candidate-count');
+    countText.innerText = `手元の「紙」に英語で回答を記入してください。（現在出題可能な残り: ${candidates.length}語）`;
+
+    // 2. 出題候補の中から「完全にランダム」に最大10問を抽出
+    // 配列をフィッシャー–イェーツのシャッフル
+    for (let i = candidates.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [candidates[i], candidates[j]] = [candidates[j], candidates[i]];
+    }
+    // 先頭から10問を今回のテストに決定
+    currentTestWords = candidates.slice(0, 10);
+
+    // 出題表示の生成
     const questionListDiv = document.getElementById('question-list');
     questionListDiv.innerHTML = '';
+    
+    if (currentTestWords.length === 0) {
+        questionListDiv.innerHTML = '<p style="text-align:center; color:#e74c3c; font-weight:bold;">現在、復習予定の単語はありません！</p>';
+        document.getElementById('btn-to-page2').disabled = true;
+        return;
+    } else {
+        document.getElementById('btn-to-page2').disabled = false;
+    }
+
     currentTestWords.forEach((word, index) => {
         const card = document.createElement('div');
         card.className = 'word-card';
@@ -222,7 +265,6 @@ function renderPage2() {
         const card = document.createElement('div');
         card.className = 'word-card';
         
-        // 英語と日本語の間に改行(<br>)を挿入、英語の色を赤(en-text)に変更
         card.innerHTML = `
             <div class="word-info">
                 <span class="question-num">Q${index + 1}</span>
@@ -265,17 +307,26 @@ function updateSubmitButtonStatus() {
     submitBtn.disabled = !allChecked;
 }
 
+// 3ページ目へ移動（間隔反復ロジックに従ってDBのインターバルと次回予定日を更新）
 function submitRecords() {
     for (const wordId in tempSelections) {
         const word = wordDatabase.find(w => w.id == wordId);
         if (word) {
             if (tempSelections[wordId] === true) {
-                word.history.correct++;
+                // 正解の場合：間隔を倍にする (1日 → 2日 → 4日 → 8日 → 16日...)
+                word.interval = word.interval * 2;
             } else {
-                word.history.incorrect++;
+                // 不正解の場合：間隔を1日にリセット
+                word.interval = 1;
             }
+            // 次回の復習予定日を「今日 + 新しい間隔（日）」に再設定
+            word.nextDate = getFutureDate(word.interval);
         }
     }
+
+    // デベロッパーツールで次回予定日が未来に伸びたか確認用
+    console.log("間隔反復更新後のDB:", wordDatabase);
+
     switchPage('page-2', 'page-3');
 }
 
