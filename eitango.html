@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>英単語暗記アプリ - 間隔反復(SRS)版</title>
+    <title>間隔反復 英単語暗記アプリ</title>
     <style>
         body {
             font-family: 'Helvetica Neue', Arial, sans-serif;
@@ -32,6 +32,12 @@
             font-size: 0.95rem;
             margin-bottom: 20px;
         }
+        .menu-group {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            margin-top: 30px;
+        }
         .word-card {
             background: #fafafa;
             border: 1px solid #e2e8f0;
@@ -57,11 +63,6 @@
             display: flex;
             flex-direction: column;
             gap: 4px;
-        }
-        .jp-text {
-            font-size: 1.2rem;
-            font-weight: 600;
-            flex-grow: 1;
         }
         /* 1ページ目の出題用（単語ブロック内でも単体で見やすく） */
         .page1-jp {
@@ -104,6 +105,16 @@
         }
         .btn-action:hover { background-color: #2980b9; }
         
+        .btn-secondary {
+            background-color: #95a5a6;
+            color: white;
+            width: 100%;
+            margin-top: 10px;
+            font-weight: bold;
+            padding: 10px;
+        }
+        .btn-secondary:hover { background-color: #7f8c8d; }
+
         /* 初期状態のグレーボタン */
         .btn-check {
             background-color: #e2e8f0;
@@ -129,6 +140,57 @@
             cursor: not-allowed;
         }
 
+        /* 入力フォーム用スタイル */
+        .input-row {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 10px;
+            align-items: center;
+        }
+        .input-row span {
+            font-weight: bold;
+            color: #7f8c8d;
+            width: 30px;
+        }
+        .input-row input {
+            flex: 1;
+            padding: 8px;
+            border: 1px solid #cbd5e1;
+            border-radius: 4px;
+            font-size: 0.95rem;
+        }
+
+        /* バックアップ用リンク風デザイン */
+        .backup-zone {
+            margin-top: 40px;
+            padding-top: 15px;
+            border-top: 1px dotted #cbd5e1;
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            font-size: 0.85rem;
+        }
+        .link-btn {
+            background: none;
+            border: none;
+            color: #7f8c8d;
+            padding: 0;
+            font-size: 0.85rem;
+            text-decoration: underline;
+            cursor: pointer;
+        }
+        .link-btn:hover {
+            color: #34495e;
+        }
+        .file-label-link {
+            color: #7f8c8d;
+            text-decoration: underline;
+            cursor: pointer;
+        }
+        .file-label-link:hover {
+            color: #34495e;
+        }
+
         .hidden { display: none; }
         
         .result-message {
@@ -138,18 +200,38 @@
             color: #27ae60;
             font-weight: bold;
         }
+        #json-upload { display: none; }
     </style>
 </head>
 <body>
 
 <div class="container">
-    <div id="page-1">
+    <div id="page-0">
+        <h1>英単語暗記アプリ</h1>
+        <p id="db-status" class="info-text">登録されている単語: 0語</p>
+        
+        <div class="menu-group">
+            <button class="btn-action" style="margin-top:0;" onclick="startTestPage()">テストを実施</button>
+            <button class="btn-action" style="background-color: #2ecc71;" onclick="goToAddPage()">問題を追加</button>
+        </div>
+
+        <div class="backup-zone">
+            <button class="link-btn" onclick="exportToJSON()">データをJSONに保存</button>
+            <div>
+                <label for="json-upload" class="file-label-link">JSONから読み込み</label>
+                <input type="file" id="json-upload" accept=".json" onchange="importFromJSON(this)">
+            </div>
+        </div>
+    </div>
+
+    <div id="page-1" class="hidden">
         <h1>英単語テスト (10問)</h1>
-        <p id="candidate-count" class="info-text">復習予定の単語を読み込み中...</p>
+        <p id="candidate-count" class="info-text"></p>
         
         <div id="question-list"></div>
 
         <button id="btn-to-page2" class="btn-action" onclick="goToPage2()">すべての回答を終了して答え合わせへ</button>
+        <button class="btn-secondary" onclick="goToMenu()">メニューに戻る</button>
     </div>
 
     <div id="page-2" class="hidden">
@@ -159,6 +241,7 @@
         <div id="answer-list"></div>
 
         <button id="btn-submit-record" class="btn-action" onclick="submitRecords()" disabled>結果を記録</button>
+        <button class="btn-secondary" onclick="goToMenu()">メニューに戻る</button>
     </div>
 
     <div id="page-3" class="hidden">
@@ -167,39 +250,67 @@
         <p class="info-text">正解した単語の間隔が引き延ばされ、次回出題が先になります。</p>
         
         <button class="btn-action" onclick="restartTest()">次の10問を実施する</button>
+        <button class="btn-secondary" onclick="goToMenu()">メニューに戻る</button>
+    </div>
+
+    <div id="page-add" class="hidden">
+        <h1>問題を追加 (最大10件)</h1>
+        <p class="info-text">追加したい「英語」と「日本語」を入力してください。<br>※片方のみ入力された行がある場合は保存できません。</p>
+        
+        <div id="input-fields-container"></div>
+
+        <button class="btn-action" style="background-color: #2ecc71;" onclick="saveNewWords()">追加する</button>
+        <button class="btn-secondary" onclick="goToMenu()">キャンセルして戻る</button>
     </div>
 </div>
 
 <script>
+// ローカルストレージ用のキー名
+const STORAGE_KEY = 'interval_flashcards_db';
+
 // ヘルパー関数: 指定日後の日付オブジェクト（時刻なし）を返す
 function getFutureDate(days) {
     let d = new Date();
-    d.setHours(0, 0, 0, 0); // 時刻をゼロクリアして日付のみで比較できるようにする
+    d.setHours(0, 0, 0, 0); 
     d.setDate(d.getDate() + days);
     return d;
 }
 
-// 仕様(1) + 間隔反復仕様のダミーDB
-// テストのため、一部はすでに「復習予定日（過去日）」を迎えている設定にしています
-let wordDatabase = [
-    { id: 1, en: "apple", jp: "りんご", interval: 1, nextDate: getFutureDate(-2) }, // 2日前に予定日超過
-    { id: 2, en: "environment", jp: "環境", interval: 1, nextDate: getFutureDate(-1) },
-    { id: 3, en: "consequence", jp: "結果、結論", interval: 2, nextDate: getFutureDate(-3) },
-    { id: 4, en: "improve", jp: "改善する、向上させる", interval: 4, nextDate: getFutureDate(-5) },
-    { id: 5, en: "simultaneously", jp: "同時に", interval: 1, nextDate: getFutureDate(0) },  // 今日が予定日
-    { id: 6, en: "negotiate", jp: "交渉する", interval: 1, nextDate: getFutureDate(-1) },
-    { id: 7, en: "vulnerable", jp: "脆弱な、傷つきやすい", interval: 1, nextDate: getFutureDate(-2) },
-    { id: 8, en: "foster", jp: "育成する、促進する", interval: 2, nextDate: getFutureDate(-1) },
-    { id: 9, en: "loyal", jp: "忠実な、誠実な", interval: 1, nextDate: getFutureDate(-4) },
-    { id: 10, en: "significant", jp: "重要な、かなりの", interval: 1, nextDate: getFutureDate(-1) },
-    { id: 11, en: "artificial", jp: "人工的な", interval: 8, nextDate: getFutureDate(5) },  // 5日後まで出ない
-    { id: 12, en: "perspective", jp: "視点、見方", interval: 16, nextDate: getFutureDate(12) } // 12日後まで出ない
-];
-
+let wordDatabase = [];
 let currentTestWords = [];
 let tempSelections = {};
 
-// アプリ初期化：間隔反復ロジックに基づくテスト生成
+// LocalStorageにデータを保存
+function saveToLocalStorage() {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(wordDatabase));
+}
+
+// LocalStorageからデータを読み込み
+function loadFromLocalStorage() {
+    const localData = localStorage.getItem(STORAGE_KEY);
+    if (localData) {
+        try {
+            wordDatabase = JSON.parse(localData);
+        } catch (e) {
+            console.error("LocalStorageデータのパースに失敗しました", e);
+            wordDatabase = [];
+        }
+    }
+}
+
+function updateMenuStatus() {
+    document.getElementById('db-status').innerText = `登録されている単語: ${wordDatabase.length}語`;
+}
+
+function startTestPage() {
+    if (wordDatabase.length === 0) {
+        alert("単語が登録されていません。「問題を追加」してください。");
+        return;
+    }
+    switchPage('page-0', 'page-1');
+    startTest();
+}
+
 function startTest() {
     tempSelections = {}; 
     
@@ -231,7 +342,7 @@ function startTest() {
     questionListDiv.innerHTML = '';
     
     if (currentTestWords.length === 0) {
-        questionListDiv.innerHTML = '<p style="text-align:center; color:#e74c3c; font-weight:bold;">現在、復習予定の単語はありません！</p>';
+        questionListDiv.innerHTML = '<p style="text-align:center; color:#e74c3c; font-weight:bold; margin: 30px 0;">現在、復習予定の単語はありません！<br>(すべての単語が定着しているか、未来の予定になっています)</p>';
         document.getElementById('btn-to-page2').disabled = true;
         return;
     } else {
@@ -323,9 +434,9 @@ function submitRecords() {
             word.nextDate = getFutureDate(word.interval);
         }
     }
-
-    // デベロッパーツールで次回予定日が未来に伸びたか確認用
-    console.log("間隔反復更新後のDB:", wordDatabase);
+    
+    // ローカルストレージに状態を即時保存
+    saveToLocalStorage();
 
     switchPage('page-2', 'page-3');
 }
@@ -335,12 +446,134 @@ function restartTest() {
     startTest();
 }
 
+function goToMenu() {
+    const pages = ['page-1', 'page-2', 'page-3', 'page-add'];
+    pages.forEach(p => document.getElementById(p).classList.add('hidden'));
+    document.getElementById('page-0').classList.remove('hidden');
+    updateMenuStatus();
+}
+
+function goToAddPage() {
+    switchPage('page-0', 'page-add');
+    const container = document.getElementById('input-fields-container');
+    container.innerHTML = '';
+    
+    for (let i = 1; i <= 10; i++) {
+        const row = document.createElement('div');
+        row.className = 'input-row';
+        row.innerHTML = `
+            <span>#${i}</span>
+            <input type="text" class="input-en" placeholder="英語 (Q)">
+            <input type="text" class="input-jp" placeholder="日本語 (A)">
+        `;
+        container.appendChild(row);
+    }
+}
+
+// 【変更】問題追加時にLocalStorageへ保存
+function saveNewWords() {
+    const enInputs = document.getElementsByClassName('input-en');
+    const jpInputs = document.getElementsByClassName('input-jp');
+    
+    let newWordsTemp = [];
+    let hasValidationError = false;
+
+    for (let i = 0; i < enInputs.length; i++) {
+        const enVal = enInputs[i].value.trim();
+        const jpVal = jpInputs[i].value.trim();
+
+        if (enVal !== "" && jpVal !== "") {
+            newWordsTemp.push({ en: enVal, jp: jpVal });
+        } else if ((enVal !== "" && jpVal === "") || (enVal === "" && jpVal !== "")) {
+            hasValidationError = true;
+            break;
+        }
+    }
+
+    if (hasValidationError) {
+        alert("英語と日本語の両方が入力されていない行があります。正しく揃えるか、追加しない行は両方とも空欄にしてください。");
+        return;
+    }
+
+    if (newWordsTemp.length === 0) {
+        alert("最低1組以上の単語を入力してください。");
+        return;
+    }
+
+    let maxId = wordDatabase.reduce((max, word) => word.id > max ? word.id : max, 0);
+
+    newWordsTemp.forEach(item => {
+        maxId++;
+        wordDatabase.push({
+            id: maxId,
+            en: item.en,
+            jp: item.jp,
+            interval: 1,
+            nextDate: getFutureDate(1) 
+        });
+    });
+
+    // ローカルストレージに新規データを保存
+    saveToLocalStorage();
+
+    alert(`${newWordsTemp.length}個の単語を追加しました。`);
+    goToMenu();
+}
+
+function exportToJSON() {
+    if (wordDatabase.length === 0) {
+        alert("保存する単語データがありません。");
+        return;
+    }
+    const jsonString = JSON.stringify(wordDatabase, null, 2);
+    const blob = new Blob([jsonString], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "flashcard_backup.json";
+    a.click();
+    URL.revokeObjectURL(url);
+}
+
+// 【変更】JSON読み込み成功時にLocalStorageにも上書き保存
+function importFromJSON(input) {
+    const file = input.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        try {
+            const data = JSON.parse(e.target.result);
+            if (Array.isArray(data)) {
+                wordDatabase = data;
+                
+                // ローカルストレージに反映
+                saveToLocalStorage();
+                
+                alert(`JSONから ${wordDatabase.length}語 のデータを読み込み、ローカルに保存しました！`);
+                updateMenuStatus();
+            } else {
+                alert("不正なJSON形式です。");
+            }
+        } catch (err) {
+            alert("ファイルの読み込み中にエラーが発生しました。");
+        }
+        input.value = "";
+    };
+    reader.readAsText(file);
+}
+
 function switchPage(hideId, showId) {
     document.getElementById(hideId).classList.add('hidden');
     document.getElementById(showId).classList.remove('hidden');
 }
 
-window.onload = startTest;
+// 【変更】起動時にLocalStorageから前回のデータを自動ロード
+window.onload = function() {
+    loadFromLocalStorage();
+    updateMenuStatus();
+};
 </script>
 
 </body>
