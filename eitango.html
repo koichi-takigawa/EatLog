@@ -86,6 +86,18 @@
             gap: 10px;
             align-self: center; /* カードの右側中央に配置 */
         }
+        .btn-speech {
+            background: none;
+            border: none;
+            font-size: 1.2rem;
+            cursor: pointer;
+            padding: 0 5px;
+            color: #34495e;
+            transition: transform 0.1s;
+        }
+        .btn-speech:hover {
+            transform: scale(1.2);
+        }
         button {
             padding: 10px 20px;
             border: none;
@@ -380,7 +392,10 @@ function renderPage2() {
             <div class="word-info">
                 <span class="question-num">Q${index + 1}</span>
                 <div class="word-text-block">
-                    <span class="en-text">${word.en}</span>
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        <span class="en-text">${word.en}</span>
+                        <button class="btn-speech" onclick="speakEnglish('${word.en.replace(/'/g, "\\'")}')" title="音声を再生">🔊</button>
+                    </div>
                     <span class="jp-sub-text">${word.jp}</span>
                 </div>
             </div>
@@ -393,6 +408,27 @@ function renderPage2() {
     });
     
     updateSubmitButtonStatus();
+}
+
+// 英語を読み上げる関数 (Web Speech API)
+function speakEnglish(text) {
+    // ブラウザが音声合成に対応しているかチェック
+    if (!('speechSynthesis' in window)) {
+        alert("お使いのブラウザは音声読み上げに対応していません。");
+        return;
+    }
+    
+    // すでに喋っている途中なら停止（連打対策）
+    window.speechSynthesis.cancel();
+
+    // 読み上げの準備
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.lang = 'en-US'; // 言語を英語（米国）に設定 ('en-GB'で英国風にもできます)
+    utterance.rate = 0.9;     // 読み上げ速度 (0.1 〜 10, 少し遅めの聞き取りやすい速度に設定)
+    utterance.pitch = 1.0;    // 声の高さ (0.0 〜 2.0)
+
+    // 再生
+    window.speechSynthesis.speak(utterance);
 }
 
 function selectResult(wordId, isCorrect) {
