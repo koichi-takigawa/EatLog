@@ -520,6 +520,7 @@ function saveNewWords() {
     goToMenu();
 }
 
+// JSONファイルにデータを書き出して保存（ファイル名を AnkiAppData_YYYYMMDD_HHMMSS.json に変更）
 function exportToJSON() {
     if (wordDatabase.length === 0) {
         alert("保存する単語データがありません。");
@@ -529,9 +530,20 @@ function exportToJSON() {
     const blob = new Blob([jsonString], { type: "application/json" });
     const url = URL.createObjectURL(blob);
     
+    // 現在の日時を取得してフォーマット (例: 20260524_234912)
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const date = String(now.getDate()).padStart(2, '0');
+    const hours = String(now.getHours()).padStart(2, '0');
+    const minutes = String(now.getMinutes()).padStart(2, '0');
+    const seconds = String(now.getSeconds()).padStart(2, '0');
+    const timestamp = `${year}${month}${date}_${hours}${minutes}${seconds}`;
+
     const a = document.createElement("a");
     a.href = url;
-    a.download = "flashcard_backup.json";
+    // ファイル名を指定の形式に設定
+    a.download = `AnkiAppData_${timestamp}.json`;
     a.click();
     URL.revokeObjectURL(url);
 }
