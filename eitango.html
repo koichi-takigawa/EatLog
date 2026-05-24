@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>英単語暗記アプリ - 見やすさ改善版</title>
+    <style>
+        body {
+            font-family: 'Helvetica Neue', Arial, sans-serif;
+            background-color: #f5f7fa;
+            color: #333;
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+        }
+        .container {
+            max-width: 600px;
+            width: 100%;
+            background: #ffffff;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+        }
+        h1, h2 {
+            text-align: center;
+            color: #2c3e50;
+        }
+        .info-text {
+            text-align: center;
+            color: #7f8c8d;
+            font-size: 0.95rem;
+            margin-bottom: 20px;
+        }
+        .word-card {
+            background: #fafafa;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 15px 20px;
+            margin-bottom: 15px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .word-info {
+            display: flex;
+            align-items: flex-start;
+        }
+        .question-num {
+            font-weight: bold;
+            color: #3498db;
+            margin-right: 15px;
+            font-size: 1.1rem;
+            line-height: 1.5;
+        }
+        .word-text-block {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+        .jp-text {
+            font-size: 1.2rem;
+            font-weight: 600;
+            flex-grow: 1;
+        }
+        /* 1ページ目の出題用（単語ブロック内でも単体で見やすく） */
+        .page1-jp {
+            font-size: 1.2rem;
+            font-weight: 600;
+            line-height: 1.5;
+        }
+        /* 2ページ目の答え合わせ用（赤文字に差し戻し） */
+        .en-text {
+            font-size: 1.3rem;
+            font-weight: bold;
+            color: #e74c3c; 
+        }
+        .jp-sub-text {
+            font-size: 1.05rem;
+            color: #555;
+            font-weight: normal;
+        }
+        .btn-group {
+            display: flex;
+            gap: 10px;
+            align-self: center; /* カードの右側中央に配置 */
+        }
+        button {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 6px;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        /* 共通の大ボタン */
+        .btn-action {
+            background-color: #3498db;
+            color: white;
+            width: 100%;
+            margin-top: 20px;
+            font-weight: bold;
+            padding: 12px;
+        }
+        .btn-action:hover { background-color: #2980b9; }
+        
+        /* 初期状態のグレーボタン */
+        .btn-check {
+            background-color: #e2e8f0;
+            color: #7f8c8d;
+            font-weight: bold;
+        }
+        .btn-check:hover { background-color: #cbd5e1; }
+
+        /* 選択された時の色 */
+        .btn-check.correct-active {
+            background-color: #2ecc71;
+            color: white;
+        }
+        .btn-check.incorrect-active {
+            background-color: #e74c3c;
+            color: white;
+        }
+
+        /* 無効化状態のボタン */
+        button:disabled {
+            background-color: #cbd5e1 !important;
+            color: #94a3b8 !important;
+            cursor: not-allowed;
+        }
+
+        .hidden { display: none; }
+        
+        .result-message {
+            text-align: center;
+            font-size: 1.2rem;
+            margin: 40px 0;
+            color: #27ae60;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div id="page-1">
+        <h1>英単語テスト (10問)</h1>
+        <p class="info-text">手元の「紙」に英語で回答を記入してください。</p>
+        
+        <div id="question-list"></div>
+
+        <button class="btn-action" onclick="goToPage2()">すべての回答を終了して答え合わせへ</button>
+    </div>
+
+    <div id="page-2" class="hidden">
+        <h1>答え合わせ</h1>
+        <p class="info-text">紙の回答と見比べて、全問の結果をチェックしてください。</p>
+        
+        <div id="answer-list"></div>
+
+        <button id="btn-submit-record" class="btn-action" onclick="submitRecords()" disabled>結果を記録</button>
+    </div>
+
+    <div id="page-3" class="hidden">
+        <h1>記録完了</h1>
+        <div class="result-message">🎉 今回のテスト結果をDBに記録しました！</div>
+        <p class="info-text">出題頻度が調整され、苦手な単語が出やすくなります。</p>
+        
+        <button class="btn-action" onclick="restartTest()">次の10問を実施する</button>
+    </div>
+</div>
+
+<script>
+// 仕様(1): 出題頻度算出のためのデータ構造（ダミーDB）
+let wordDatabase = [
+    { id: 1, en: "apple", jp: "りんご", history: { correct: 2, incorrect: 1 } },
+    { id: 2, en: "environment", jp: "環境", history: { correct: 0, incorrect: 3 } },
+    { id: 3, en: "consequence", jp: "結果、結論", history: { correct: 1, incorrect: 0 } },
+    { id: 4, en: "improve", jp: "改善する、向上させる", history: { correct: 5, incorrect: 2 } },
+    { id: 5, en: "simultaneously", jp: "同時に", history: { correct: 0, incorrect: 0 } },
+    { id: 6, en: "negotiate", jp: "交渉する", history: { correct: 3, incorrect: 1 } },
+    { id: 7, en: "vulnerable", jp: "脆弱な、傷つきやすい", history: { correct: 1, incorrect: 4 } },
+    { id: 8, en: "foster", jp: "育成する、促進する", history: { correct: 2, incorrect: 0 } },
+    { id: 9, en: "loyal", jp: "忠実な、誠実な", history: { correct: 4, incorrect: 2 } },
+    { id: 10, en: "significant", jp: "重要な、かなりの", history: { correct: 3, incorrect: 0 } }
+];
+
+let currentTestWords = [];
+let tempSelections = {};
+
+// アプリ初期化：テスト開始
+function startTest() {
+    currentTestWords = [...wordDatabase].slice(0, 10);
+    tempSelections = {}; 
+
+    const questionListDiv = document.getElementById('question-list');
+    questionListDiv.innerHTML = '';
+    currentTestWords.forEach((word, index) => {
+        const card = document.createElement('div');
+        card.className = 'word-card';
+        card.innerHTML = `
+            <div class="word-info">
+                <span class="question-num">Q${index + 1}</span>
+                <span class="page1-jp">${word.jp}</span>
+            </div>
+        `;
+        questionListDiv.appendChild(card);
+    });
+}
+
+function goToPage2() {
+    switchPage('page-1', 'page-2');
+    renderPage2();
+}
+
+// 2ページ目（答え合わせ）の生成
+function renderPage2() {
+    const answerListDiv = document.getElementById('answer-list');
+    answerListDiv.innerHTML = '';
+
+    currentTestWords.forEach((word, index) => {
+        const card = document.createElement('div');
+        card.className = 'word-card';
+        
+        // 英語と日本語の間に改行(<br>)を挿入、英語の色を赤(en-text)に変更
+        card.innerHTML = `
+            <div class="word-info">
+                <span class="question-num">Q${index + 1}</span>
+                <div class="word-text-block">
+                    <span class="en-text">${word.en}</span>
+                    <span class="jp-sub-text">${word.jp}</span>
+                </div>
+            </div>
+            <div class="btn-group">
+                <button id="btn-ok-${word.id}" class="btn-check" onclick="selectResult(${word.id}, true)">〇 正解</button>
+                <button id="btn-ng-${word.id}" class="btn-check" onclick="selectResult(${word.id}, false)">× 不正解</button>
+            </div>
+        `;
+        answerListDiv.appendChild(card);
+    });
+    
+    updateSubmitButtonStatus();
+}
+
+function selectResult(wordId, isCorrect) {
+    tempSelections[wordId] = isCorrect;
+
+    const okBtn = document.getElementById(`btn-ok-${wordId}`);
+    const ngBtn = document.getElementById(`btn-ng-${wordId}`);
+
+    if (isCorrect) {
+        okBtn.className = "btn-check correct-active";
+        ngBtn.className = "btn-check";
+    } else {
+        okBtn.className = "btn-check";
+        ngBtn.className = "btn-check incorrect-active";
+    }
+
+    updateSubmitButtonStatus();
+}
+
+function updateSubmitButtonStatus() {
+    const submitBtn = document.getElementById('btn-submit-record');
+    const allChecked = currentTestWords.every(word => tempSelections[word.id] !== undefined);
+    submitBtn.disabled = !allChecked;
+}
+
+function submitRecords() {
+    for (const wordId in tempSelections) {
+        const word = wordDatabase.find(w => w.id == wordId);
+        if (word) {
+            if (tempSelections[wordId] === true) {
+                word.history.correct++;
+            } else {
+                word.history.incorrect++;
+            }
+        }
+    }
+    switchPage('page-2', 'page-3');
+}
+
+function restartTest() {
+    switchPage('page-3', 'page-1');
+    startTest();
+}
+
+function switchPage(hideId, showId) {
+    document.getElementById(hideId).classList.add('hidden');
+    document.getElementById(showId).classList.remove('hidden');
+}
+
+window.onload = startTest;
+</script>
+
+</body>
+</html>
