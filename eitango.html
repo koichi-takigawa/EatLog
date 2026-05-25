@@ -202,6 +202,24 @@
         .file-label-link:hover {
             color: #34495e;
         }
+        /* テスト中ページの「メニューに戻る」リンク用スタイル */
+        .menu-link-container {
+            margin-top: 25px;
+            text-align: center;
+        }
+        .menu-link-btn {
+            background: none;
+            border: none;
+            color: #95a5a6;
+            padding: 5px 10px;
+            font-size: 0.85rem;
+            text-decoration: underline;
+            cursor: pointer;
+            transition: color 0.2s;
+        }
+        .menu-link-btn:hover {
+            color: #7f8c8d;
+        }
 
         .hidden { display: none; }
         
@@ -243,7 +261,9 @@
         <div id="question-list"></div>
 
         <button id="btn-to-page2" class="btn-action" onclick="goToPage2()">すべての回答を終了して答え合わせへ</button>
-        <button class="btn-secondary" onclick="goToMenu()">メニューに戻る</button>
+        <div class="menu-link-container">
+            <button class="menu-link-btn" onclick="confirmGoToMenu()">メニューに戻る</button>
+        </div>
     </div>
 
     <div id="page-2" class="hidden">
@@ -253,7 +273,9 @@
         <div id="answer-list"></div>
 
         <button id="btn-submit-record" class="btn-action" onclick="submitRecords()" disabled>結果を記録</button>
-        <button class="btn-secondary" onclick="goToMenu()">メニューに戻る</button>
+        <div class="menu-link-container">
+            <button class="menu-link-btn" onclick="confirmGoToMenu()">メニューに戻る</button>
+        </div>
     </div>
 
     <div id="page-3" class="hidden">
@@ -480,6 +502,13 @@ function submitRecords() {
 function restartTest() {
     switchPage('page-3', 'page-1');
     startTest();
+}
+
+// テスト中にメニューに戻ろうとした際、確認を挟む関数
+function confirmGoToMenu() {
+    if (confirm("メニューに戻ると、現在実施中のテスト状態は破棄されます。本当にもどりますか？")) {
+        goToMenu();
+    }
 }
 
 function goToMenu() {
