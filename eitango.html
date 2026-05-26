@@ -252,6 +252,17 @@
                 <input type="file" id="json-upload" accept=".json" onchange="importFromJSON(this)">
             </div>
         </div>
+        <div style="margin-top: 25px; padding-top: 15px; border-top: 1px dotted #cbd5e1;">
+            <div style="display: flex; gap: 8px; margin-bottom: 10px;">
+                <input type="text" id="gas-api-url" placeholder="GAS WebアプリのURLを入力" style="flex: 1; padding: 8px; border: 1px solid #cbd5e1; border-radius: 4px; font-size: 0.85rem;">
+                <button onclick="saveApiUrl()" style="padding: 8px 12px; background-color: #34495e; color: white; font-size: 0.85rem; border-radius: 4px; font-weight: bold;">URL保存</button>
+            </div>
+            <div style="display: flex; justify-content: center; gap: 20px; font-size: 0.85rem;">
+                <button class="link-btn" style="color: #2980b9;" onclick="exportToSpreadsheet()">スプレッドシートへ保存</button>
+                <button class="link-btn" style="color: #27ae60;" onclick="importFromSpreadsheet()">スプレッドシートから読み込み</button>
+            </div>
+        </div>
+        
     </div>
 
     <div id="page-1" class="hidden">
@@ -301,6 +312,9 @@
 <script>
 // ローカルストレージ用のキー名
 const STORAGE_KEY = 'interval_flashcards_db';
+
+// LocalStorage用の追加キー
+const API_URL_KEY = 'interval_flashcards_api_url';
 
 // ヘルパー関数: 指定日後の日付オブジェクト（時刻なし）を返す
 function getFutureDate(days) {
@@ -639,6 +653,107 @@ function importFromJSON(input) {
         input.value = "";
     };
     reader.readAsText(file);
+}
+
+// 起動時にAPI URLもロードするように window.onload を拡張
+const originalOnload = window.onload;
+window.onload = function() {
+    if (originalOnload) originalOnload();
+    const savedUrl = localStorage.getItem(API_URL_KEY);
+    if (savedUrl) {
+        document.getElementById('gas-api-url').value = savedUrl;
+    }
+};
+
+// API URLをローカルに保存する
+function saveApiUrl() {
+    const url = document.getElementById('gas-api-url').value.trim();
+    localStorage.setItem(API_URL_KEY, url);
+    alert("API URLを保存しました。");
+}
+
+// スプレッドシートへデータを送信 (保存)
+function exportToSpreadsheet() {
+    const url = localStorage.getItem(API_URL_KEY);
+    if (!url) {
+        alert("先にAPI URLを設定・保存してください。");
+        return;
+    }
+    if (wordDatabase.length === 0) {
+        alert("保存する単語データがありません。");
+        return;
+    }
+
+    if (!confirm("現在のデータをスプレッドシートに上書き保存しますか？")) return;
+
+    // 通信中の簡易表示
+    const btn = event.target;
+    const originalText = btn.innerText;
+    btn.innerText = "通信中...";
+    btn.disabled = true;
+
+    fetch(url, {
+        method: "POST",
+        mode: "cors",
+        headers: { "Content-Type": "text/plain" }, // CORS制約回避のため text/plain で送るのがGASのセオリーです
+        body: JSON.stringify(wordDatabase)
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.status === "success") {
+            alert("スプレッドシートへの保存が完了しました！");
+        } else {
+            alert("保存エラー: " + data.message);
+        }
+    })
+    .catch(error => {
+        console.error(error);
+        alert("通信に失敗しました。URLが正しいか、GASの公開設定を確認してください。");
+    })
+    .finally(() => {
+        btn.innerText = originalText;
+        btn.disabled = false;
+    });
+}
+
+// スプレッドシートからデータを取得 (読み込み)
+function importFromSpreadsheet() {
+    const url = localStorage.getItem(API_URL_KEY);
+    if (!url) {
+        alert("先にAPI URLを設定・保存してください。");
+        return;
+    }
+
+    if (!confirm("スプレッドシートからデータを読み込みます。現在のローカルデータは上書きされますがよろしいですか？")) return;
+
+    const btn = event.target;
+    const originalText = btn.innerText;
+    btn.innerText = "通信中...";
+    btn.disabled = true;
+
+    fetch(url, {
+        method: "GET",
+        mode: "cors"
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (Array.isArray(data)) {
+            wordDatabase = data;
+            saveToLocalStorage(); // ローカルストレージにも同期
+            updateMenuStatus();
+            alert(`スプレッドシートから ${wordDatabase.length}語 のデータを読み込みました！`);
+        } else {
+            alert("データ形式が正しくありません。スプレッドシートが空の可能性があります。");
+        }
+    })
+    .catch(error => {
+        console.error(error);
+        alert("通信に失敗しました。URLが正しいか、GASの公開設定を確認してください。");
+    })
+    .finally(() => {
+        btn.innerText = originalText;
+        btn.disabled = false;
+    });
 }
 
 function switchPage(hideId, showId) {
