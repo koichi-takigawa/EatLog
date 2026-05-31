@@ -283,6 +283,10 @@
   }
 
   function drawHpBar(x, y, width, height, hp, maxHp, fillColor) {
+
+    // HP満タン時はバーを描画しない
+    if (maxHp > 0 && hp >= maxHp) return;
+
     const ratio = clamp(maxHp > 0 ? hp / maxHp : 0, 0, 1);
     ctx.fillStyle = 'rgba(0,0,0,0.65)';
     ctx.fillRect(x - width / 2, y, width, height);
@@ -333,12 +337,6 @@
       ctx.fillText(a.mark || '・', s.x, s.y + 0.5);
 
       drawHpBar(s.x, s.y - 24, 36, 6, a.hp, a.maxHp, '#66dd88');
-
-      // UI表示: 現在の足止め使用数/上限(blockCap)を可視化
-      const used = blockMap.get(cellKey(a.q, a.r)) || 0;
-      ctx.fillStyle = 'rgba(240,245,255,0.92)';
-      ctx.font = '11px sans-serif';
-      ctx.fillText(`${used}/${a.blockCap}`, s.x, s.y + 19);
     }
   }
 
