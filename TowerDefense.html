@@ -35,6 +35,8 @@
   // =========================================================
   // 基本設定
   // =========================================================
+  // ゲーム全体で共有する定数・初期状態をここで定義する。
+  // 各種スケール計算や描画/戦闘処理は、これらの値を参照して動作する。
   const HEX_SIZE = 42;
   const SQRT3 = Math.sqrt(3);
 
@@ -72,6 +74,8 @@
   const ALLY_BASE_RADIUS = 14;
 
   function buildCatalog() {
+    // ユニットのマスターデータ。配置時にはこの定義を複製して実体化する。
+    // blockCap は「同時に足止めできる敵の上限数」を表す。
     return [
       // 盾: タンク（ブロック3）
       { id: 'allyA', name: 'タンク', cost: 6, color: '#4cc9f0', maxHp: 220, atk: 10, atkIntervalMs: 1200, minRange: 1, maxRange: 1, role: 'attacker', mark: '盾', blockCap: 3 },
@@ -121,6 +125,8 @@
   }
 
   function getEnemyScale() {
+    // 経過時間に応じて敵ステータスと出現間隔をスケールする。
+    // 出現間隔は MOVE_DURATION_MS 未満にならないように下限を設ける。
     const t = elapsedMs / 1000;
     const hpMul  = 1 + HP_GROWTH_PER_SEC * t;
     const atkMul = 1 + ATK_GROWTH_PER_SEC * t;
@@ -144,6 +150,8 @@
   // =========================================================
   // Hex変換
   // =========================================================
+  // 画面座標系とヘックス座標系の相互変換を集約する。
+  // 入力（ドラッグ配置）と描画（ユニット/敵の位置決定）の両方で利用する。
   function hexToPixel(q, r, size = HEX_SIZE) {
     return { x: size * SQRT3 * (q + r / 2), y: size * 1.5 * r };
   }
@@ -168,6 +176,8 @@
     return { q: rx, r: rz };
   }
   function screenToHex(x, y) {
+    // ポインタ座標を最寄りのヘックス1セルへ丸め込む。
+    // 配置判定やプレビュー表示の基準セルを確定する入口。
     const f = screenToAxialFloat(x, y);
     return axialRound(f.q, f.r);
   }
@@ -190,6 +200,10 @@
 
   // 現在味方に張り付いている敵数
   function buildBlockCountMap() {
+    // 仕様:
+    // - 集計対象は `blocking === true` の敵のみ
+    // - キーは味方セル(q,r)、値はその味方を足止め対象にしている敵数
+    // - beginNextStep/updateEnemies で blockCap 判定に使う基礎データ
     const map = new Map(); // key: "q,r" -> count
     for (const e of enemies) {
       if (!e.blocking) continue;
@@ -320,7 +334,7 @@
 
       drawHpBar(s.x, s.y - 24, 36, 6, a.hp, a.maxHp, '#66dd88');
 
-      // ブロック使用数 표시
+      // UI表示: 現在の足止め使用数/上限(blockCap)を可視化
       const used = blockMap.get(cellKey(a.q, a.r)) || 0;
       ctx.fillStyle = 'rgba(240,245,255,0.92)';
       ctx.font = '11px sans-serif';
@@ -329,6 +343,8 @@
   }
 
   function drawRangePreview(centerQ, centerR, minRange, maxRange, role) {
+    // 配置プレビュー用の射程表示。
+    // minRange～maxRange のリングを半透明で塗り、攻撃役/回復役で色を分ける。
     const fill = role === 'healer' ? 'rgba(239,71,111,0.18)' : 'rgba(76,201,240,0.16)';
     const stroke = role === 'healer' ? 'rgba(255,130,160,0.55)' : 'rgba(120,220,255,0.50)';
 
@@ -386,6 +402,7 @@
   // =========================================================
   // UI
   // =========================================================
+  // 下部ユニットパネルとドラッグ中プレビューを描画するセクション。
   function getSlotRect(i) {
     const x = ui.panelX + ui.padding + i * (ui.slotW + ui.slotGap);
     const y = ui.panelY + 26;
@@ -395,6 +412,9 @@
   const isUnitActive = (u) => point >= u.cost;
 
   function drawUnitPanel() {
+    // ユニット一覧UI:
+    // - 現在ポイントと敵スポーン速度を表示
+    // - 各スロットの有効/無効状態を見た目で表現
     ctx.fillStyle = 'rgba(12,16,22,0.88)';
     ctx.fillRect(ui.panelX, ui.panelY, ui.panelW, ui.panelH);
     ctx.strokeStyle = 'rgba(120,150,180,0.8)';
@@ -458,6 +478,7 @@
       ctx.fillText(`${u.cost} pt`, rect.x + rect.w / 2, rect.y + 82);
 
       if (!active) {
+        // コスト不足時は暗転＋LOCK表示で「未購入状態」を明示する。
         ctx.fillStyle = 'rgba(0,0,0,0.35)';
         ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
         ctx.fillStyle = 'rgba(255,255,255,0.85)';
@@ -476,6 +497,8 @@
     const s = worldToScreen(h.q, h.r);
     const ok = canPlaceAlly(h.q, h.r);
 
+    // 配置候補セルのレンジを先に見せ、続けて配置可否色のヘックスを重ねる。
+    // これにより「置けるか」と「置いた後の届く範囲」を同時に判断できる。
     drawRangePreview(h.q, h.r, u.minRange, u.maxRange, u.role);
 
     drawHex(
@@ -505,6 +528,7 @@
   // =========================================================
   // Enemy AI
   // =========================================================
+  // 敵の移動先決定・足止め（blocking）判定を管理するセクション。
   function weightedDirsByR(r) {
     if (r < 0) return [
       { dir: DIR_LEFT,      w: 0.60 },
@@ -580,6 +604,11 @@
   }
 
   function beginNextStep(e, reservedTargets, blockCountMap) {
+    // 1ステップ分の移動/停止先を決定する。
+    // 優先順位:
+    //   A. 前方3方向に blockCap 余裕のある味方がいれば、その場停止＋blocking化
+    //   B. いなければ重み付き候補から通常移動
+    // reservedTargets で同時更新時のセル競合を回避する。
     const currentQ = e.toQ, currentR = e.toR;
 
     // 先に blocking解除（再評価）
@@ -652,6 +681,9 @@
   }
 
   function updateEnemies(dt) {
+    // 敵の移動更新本体。
+    // 到着済み個体のみ beginNextStep で次行動を確定し、
+    // それ以外は from→to の補間で滑らかに描画位置を更新する。
     for (const e of enemies) e.moveElapsed += dt;
 
     const arrived = enemies
@@ -696,7 +728,10 @@
   // =========================================================
   // Combat
   // =========================================================
+  // 味方/敵の攻撃・回復と撃破判定を処理するセクション。
   function updateCombat(dt) {
+    // 味方はロール別（attacker/healer）にターゲット選定ロジックを分岐。
+    // 敵は blocking 中なら固定対象を優先して攻撃する。
     // 味方行動
     for (const a of alliesOnMap) {
       a.atkTimerMs += dt;
@@ -786,6 +821,7 @@
   // =========================================================
   // Input
   // =========================================================
+  // ポインタ入力から「ユニット選択→ドラッグ→配置確定」を扱うセクション。
   function findCatalogIndexAt(x, y) {
     for (let i = 0; i < allyCatalog.length; i++) {
       const rect = getSlotRect(i);
@@ -865,6 +901,7 @@
   // =========================================================
   // Update / Render
   // =========================================================
+  // 毎フレームの状態更新(update)と描画(render)のメインループ。
   function update(dt) {
     elapsedMs += dt;
     point = Math.min(MAX_POINT, point + (dt / 1000) * POINT_GAIN_PER_SEC);
