@@ -100,6 +100,10 @@
 
   let dragState = { active: false, catalogIndex: -1, pointerX: 0, pointerY: 0 };
   const combatLines = [];
+  
+  // ダメージ/回復のフローティングテキスト
+  const floatingTexts = [];
+  const FLOAT_TEXT_DURATION_MS = 700;
 
   const ui = {
     panelX: 16, panelY: 0, panelW: 460, panelH: 140,
@@ -385,6 +389,50 @@
       ctx.lineWidth = l.width;
       ctx.stroke();
     }
+  }
+
+  function addFloatingText(q, r, text, color) {
+    const s = worldToScreen(q, r);
+    floatingTexts.push({
+      x: s.x,
+      y: s.y - 8,          // 少し上から表示開始
+      text,
+      color,
+      ttl: FLOAT_TEXT_DURATION_MS,
+      maxTtl: FLOAT_TEXT_DURATION_MS
+    });
+  }
+
+  function updateFloatingTexts(dt) {
+    for (const f of floatingTexts) {
+      f.ttl -= dt;
+      // 上方向にふわっと移動
+      f.y -= 0.03 * dt;
+    }
+    for (let i = floatingTexts.length - 1; i >= 0; i--) {
+      if (floatingTexts[i].ttl <= 0) floatingTexts.splice(i, 1);
+    }
+  }
+
+  function drawFloatingTexts() {
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.font = 'bold 16px sans-serif';
+
+    for (const f of floatingTexts) {
+      const alpha = clamp(f.ttl / f.maxTtl, 0, 1);
+      ctx.globalAlpha = alpha;
+
+      // 読みやすいように縁取り
+      ctx.lineWidth = 3;
+      ctx.strokeStyle = 'rgba(10,14,20,0.9)';
+      ctx.strokeText(f.text, f.x, f.y);
+
+      ctx.fillStyle = f.color;
+      ctx.fillText(f.text, f.x, f.y);
+    }
+
+    ctx.globalAlpha = 1;
   }
 
   function drawEnemyOccupiedCells() {
@@ -747,6 +795,8 @@
             const t = targets.find(x => x.hp > 0);
             if (!t) break;
             t.hp -= a.atk;
+
+            addFloatingText(t.toQ, t.toR, `-${a.atk}`, '#ffd166');
             addCombatLine(a.q, a.r, t.toQ, t.toR, 'rgba(120,220,255,{a})', 2.8);
           }
         }
@@ -765,7 +815,13 @@
             friends.sort((f1, f2) => (f2.maxHp - f2.hp) - (f1.maxHp - f1.hp));
             const t = friends[0];
             if (!t) break;
+
+            const before = t.hp;
             t.hp = Math.min(t.maxHp, t.hp + a.heal);
+            const healed = t.hp - before;
+            if (healed > 0) {
+              addFloatingText(t.q, t.r, `+${healed}`, '#6ecbff'); // 青っぽい回復文字
+            }
             addCombatLine(a.q, a.r, t.q, t.r, 'rgba(255,120,180,{a})', 2.8);
           }
         }
@@ -799,6 +855,8 @@
         const t = targets[0];
         if (!t || t.hp <= 0) break;
         t.hp -= e.atk;
+
+        addFloatingText(t.q, t.r, `-${e.atk}`, '#ff8a8a');
         addCombatLine(e.toQ, e.toR, t.q, t.r, 'rgba(255,120,120,{a})', 2.6);
       }
     }
@@ -913,6 +971,7 @@
     updateEnemies(effectiveDt);
     updateCombat(effectiveDt);
     updateCombatLines(effectiveDt);
+    updateFloatingTexts(effectiveDt);
   }
 
   function render() {
@@ -927,6 +986,7 @@
     drawAllies();
     drawEnemies();
     drawCombatLines();
+    drawFloatingTexts();
 
     drawUnitPanel();
     drawDragPreview();
