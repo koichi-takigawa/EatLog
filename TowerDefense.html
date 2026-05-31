@@ -903,19 +903,23 @@
   // =========================================================
   // 毎フレームの状態更新(update)と描画(render)のメインループ。
   function update(dt) {
-    elapsedMs += dt;
-    point = Math.min(MAX_POINT, point + (dt / 1000) * POINT_GAIN_PER_SEC);
-
+    // ドラッグ中はゲーム内時間を20%で進める（スローモーション）
+    const timeScale = dragState.active ? 0.2 : 1.0;
+    const effectiveDt = dt * timeScale;
+  
+    elapsedMs += effectiveDt;
+    point = Math.min(MAX_POINT, point + (effectiveDt / 1000) * POINT_GAIN_PER_SEC);
+  
     const scale = getEnemyScale();
-    spawnTimer += dt;
+    spawnTimer += effectiveDt;
     while (spawnTimer >= scale.spawnIntervalMs) {
       spawnTimer -= scale.spawnIntervalMs;
       spawnWave();
     }
-
-    updateEnemies(dt);
-    updateCombat(dt);
-    updateCombatLines(dt);
+  
+    updateEnemies(effectiveDt);
+    updateCombat(effectiveDt);
+    updateCombatLines(effectiveDt);
   }
 
   function render() {
