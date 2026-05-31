@@ -73,6 +73,13 @@
   // 味方見た目
   const ALLY_BASE_RADIUS = 14;
 
+  // 追加: ランダム壁設定
+  const RANDOM_WALL_COUNT = 10;
+  const RANDOM_WALL_R_MIN = -6;
+  const RANDOM_WALL_R_MAX = 6;
+  const RANDOM_WALL_Q_MIN = -2;  // 左寄りに出したいならこの辺を調整
+  const RANDOM_WALL_Q_MAX = 8;
+
   // 開始演出・ゲームオーバー
   const READY_MS = 900;
   const START_MS = 700;
@@ -102,6 +109,35 @@
   let enemies = [];
   let enemyIdSeq = 1;
   let spawnTimer = 0;
+  
+  // ランダム壁生成（ゲーム開始時1回）
+  function generateRandomWalls(count = RANDOM_WALL_COUNT) {
+    extraWalls.clear();
+
+    let guard = 0;
+    const maxGuard = 5000;
+
+    while (extraWalls.size < count && guard < maxGuard) {
+      guard++;
+
+      const q = Math.floor(Math.random() * (RANDOM_WALL_Q_MAX - RANDOM_WALL_Q_MIN + 1)) + RANDOM_WALL_Q_MIN;
+      const r = Math.floor(Math.random() * (RANDOM_WALL_R_MAX - RANDOM_WALL_R_MIN + 1)) + RANDOM_WALL_R_MIN;
+
+      // 既存固定壁と重複しない
+      if (isFixedWall(q, r)) continue;
+
+      // スポーン地点は塞がない
+      if (SPAWN_POINTS.some(sp => sp.q === q && sp.r === r)) continue;
+
+      // 初期の配置可能エリアを全部潰しすぎないよう、中央を少し避けたい場合は任意で追加
+      // if (q <= 0 && Math.abs(r) <= 1) continue;
+
+      extraWalls.add(cellKey(q, r));
+    }
+  }
+
+  // 壁セット
+  const extraWalls = new Set();
 
   let lastTime = 0;
   let elapsedMs = 0;
@@ -210,9 +246,16 @@
   // =========================================================
   // 壁・配置
   // =========================================================
-  function isWall(q, r) {
+  // 固定壁
+  function isFixedWall(q, r) {
     return (r <= -7 || r >= 7 || (q === 1 && r === 0));
   }
+
+  // 全壁
+  function isWall(q, r) {
+    return isFixedWall(q, r) || extraWalls.has(cellKey(q, r));
+  }
+  
   const isAllyOccupied = (q, r) => alliesOnMap.some(a => a.q === q && a.r === r);
   const isEnemyTargetReserved = (q, r) => enemies.some(e => e.toQ === q && e.toR === r);
 
@@ -1206,6 +1249,7 @@
 
   // 初期化
   resize();
+  generateRandomWalls();
   requestAnimationFrame(loop);
 })();
 </script>
