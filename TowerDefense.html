@@ -1,0 +1,916 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Hex TD Prototype - Block Capacity</title>
+  <style>
+    html, body {
+      margin: 0;
+      width: 100%;
+      height: 100%;
+      background: #10151c;
+      overflow: hidden;
+      font-family: sans-serif;
+      user-select: none;
+      -webkit-user-select: none;
+      touch-action: none;
+    }
+    canvas {
+      display: block;
+      width: 100vw;
+      height: 100vh;
+      cursor: default;
+    }
+  </style>
+</head>
+<body>
+<canvas id="game"></canvas>
+
+<script>
+(() => {
+  const canvas = document.getElementById('game');
+  const ctx = canvas.getContext('2d');
+
+  // =========================================================
+  // 基本設定
+  // =========================================================
+  const HEX_SIZE = 42;
+  const SQRT3 = Math.sqrt(3);
+
+  // 敵（ベース）
+  const BASE_SPAWN_INTERVAL_MS = 5000;
+  const MOVE_DURATION_MS = 700; // 出現間隔の下限
+  const ENEMY_RADIUS = 11;
+
+  const BASE_ENEMY_HP = 100;
+  const BASE_ENEMY_ATK = 8;
+  const ENEMY_ATK_INTERVAL_MS = 900;
+
+  const SPAWN_POINTS = [
+    { q: 14, r: -4 },
+    { q: 10, r: 4 }
+  ];
+
+  const DIR_LEFT      = { q: -1, r: 0  };
+  const DIR_LEFT_UP   = { q: 0,  r: -1 };
+  const DIR_LEFT_DOWN = { q: -1, r: 1  };
+
+  // 難易度スケーリング（全て1/5）
+  const HP_GROWTH_PER_SEC = 0.003;      // 以前0.015
+  const ATK_GROWTH_PER_SEC = 0.002;     // 以前0.010
+  const SPAWN_SPEEDUP_PER_SEC = 0.002;  // 以前0.010→1/5
+
+  // 味方ポイント
+  const POINT_GAIN_PER_SEC = 2;
+  const MAX_POINT = 999;
+
+  // 戦闘線
+  const COMBAT_LINE_DURATION_MS = 220;
+
+  // 味方見た目
+  const ALLY_BASE_RADIUS = 14;
+
+  function buildCatalog() {
+    return [
+      // 盾: タンク（ブロック3）
+      { id: 'allyA', name: 'タンク', cost: 6, color: '#4cc9f0', maxHp: 220, atk: 10, atkIntervalMs: 1200, minRange: 1, maxRange: 1, role: 'attacker', mark: '盾', blockCap: 3 },
+      // 剣: ナイト（ブロック1）
+      { id: 'allyB', name: 'ナイト', cost: 10, color: '#80ed99', maxHp: 150, atk: 26, atkIntervalMs: 800,  minRange: 1, maxRange: 1, role: 'attacker', mark: '剣', blockCap: 1 },
+      // 弓: アーチャー（ブロック3）
+      { id: 'allyC', name: 'アーチャー', cost: 15, color: '#ffd166', maxHp: 90, atk: 18, atkIntervalMs: 1300, minRange: 3, maxRange: 4, role: 'attacker', mark: '弓', blockCap: 2 },
+      // 回: ヒーラー（ブロック3）
+      { id: 'allyD', name: 'ヒーラー', cost: 20, color: '#ef476f', maxHp: 95, heal: 12, atkIntervalMs: 1300, minRange: 0, maxRange: 3, role: 'healer', mark: '回', blockCap: 2 }
+    ];
+  }
+
+  const allyCatalog = buildCatalog();
+  const alliesOnMap = [];
+  let enemies = [];
+  let enemyIdSeq = 1;
+  let spawnTimer = 0;
+
+  let lastTime = 0;
+  let elapsedMs = 0;
+  let point = 0;
+
+  let dragState = { active: false, catalogIndex: -1, pointerX: 0, pointerY: 0 };
+  const combatLines = [];
+
+  const ui = {
+    panelX: 16, panelY: 0, panelW: 460, panelH: 140,
+    slotW: 98, slotH: 104, slotGap: 10, padding: 12
+  };
+
+  // =========================================================
+  // Utils
+  // =========================================================
+  const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
+  const cellKey = (q, r) => `${q},${r}`;
+  const isInsideRect = (px, py, x, y, w, h) => px >= x && px <= x + w && py >= y && py <= y + h;
+
+  function getPointerPos(evt) {
+    const rect = canvas.getBoundingClientRect();
+    return { x: evt.clientX - rect.left, y: evt.clientY - rect.top };
+  }
+
+  function hexDistance(q1, r1, q2, r2) {
+    const x1 = q1, z1 = r1, y1 = -x1 - z1;
+    const x2 = q2, z2 = r2, y2 = -x2 - z2;
+    return Math.max(Math.abs(x1 - x2), Math.abs(y1 - y2), Math.abs(z1 - z2));
+  }
+
+  function getEnemyScale() {
+    const t = elapsedMs / 1000;
+    const hpMul  = 1 + HP_GROWTH_PER_SEC * t;
+    const atkMul = 1 + ATK_GROWTH_PER_SEC * t;
+    const spawnMul = Math.max(0.1, 1 - SPAWN_SPEEDUP_PER_SEC * t);
+    const spawnIntervalMs = Math.max(MOVE_DURATION_MS, BASE_SPAWN_INTERVAL_MS * spawnMul);
+    return { hpMul, atkMul, spawnIntervalMs };
+  }
+
+  // =========================================================
+  // Resize
+  // =========================================================
+  function resize() {
+    const dpr = window.devicePixelRatio || 1;
+    canvas.width = Math.floor(window.innerWidth * dpr);
+    canvas.height = Math.floor(window.innerHeight * dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ui.panelY = window.innerHeight - ui.panelH - 16;
+  }
+  window.addEventListener('resize', resize);
+
+  // =========================================================
+  // Hex変換
+  // =========================================================
+  function hexToPixel(q, r, size = HEX_SIZE) {
+    return { x: size * SQRT3 * (q + r / 2), y: size * 1.5 * r };
+  }
+  function worldToScreen(q, r) {
+    const p = hexToPixel(q, r, HEX_SIZE);
+    return { x: window.innerWidth / 2 + p.x, y: window.innerHeight / 2 + p.y };
+  }
+  function screenToAxialFloat(x, y) {
+    const wx = x - window.innerWidth / 2;
+    const wy = y - window.innerHeight / 2;
+    const q = (SQRT3 / 3 * wx - 1 / 3 * wy) / HEX_SIZE;
+    const r = (2 / 3 * wy) / HEX_SIZE;
+    return { q, r };
+  }
+  function axialRound(q, r) {
+    let x = q, z = r, y = -x - z;
+    let rx = Math.round(x), ry = Math.round(y), rz = Math.round(z);
+    const xDiff = Math.abs(rx - x), yDiff = Math.abs(ry - y), zDiff = Math.abs(rz - z);
+    if (xDiff > yDiff && xDiff > zDiff) rx = -ry - rz;
+    else if (yDiff > zDiff) ry = -rx - rz;
+    else rz = -rx - ry;
+    return { q: rx, r: rz };
+  }
+  function screenToHex(x, y) {
+    const f = screenToAxialFloat(x, y);
+    return axialRound(f.q, f.r);
+  }
+
+  // =========================================================
+  // 壁・配置
+  // =========================================================
+  function isWall(q, r) {
+    return (r === -7 || r === 7 || (q === 1 && r === 0));
+  }
+  const isAllyOccupied = (q, r) => alliesOnMap.some(a => a.q === q && a.r === r);
+  const isEnemyTargetReserved = (q, r) => enemies.some(e => e.toQ === q && e.toR === r);
+
+  function canPlaceAlly(q, r) {
+    if (isWall(q, r)) return false;
+    if (isAllyOccupied(q, r)) return false;
+    if (isEnemyTargetReserved(q, r)) return false;
+    return true;
+  }
+
+  // 現在味方に張り付いている敵数
+  function buildBlockCountMap() {
+    const map = new Map(); // key: "q,r" -> count
+    for (const e of enemies) {
+      if (!e.blocking) continue;
+      const k = cellKey(e.blockTargetQ, e.blockTargetR);
+      map.set(k, (map.get(k) || 0) + 1);
+    }
+    return map;
+  }
+
+  // =========================================================
+  // Draw helpers
+  // =========================================================
+  function hexCorners(cx, cy, size) {
+    const pts = [];
+    for (let i = 0; i < 6; i++) {
+      const rad = (Math.PI / 180) * (60 * i - 30);
+      pts.push({ x: cx + size * Math.cos(rad), y: cy + size * Math.sin(rad) });
+    }
+    return pts;
+  }
+
+  function drawHex(cx, cy, size, fill, stroke, lineWidth = 1.4) {
+    const pts = hexCorners(cx, cy, size);
+    ctx.beginPath();
+    ctx.moveTo(pts[0].x, pts[0].y);
+    for (let i = 1; i < 6; i++) ctx.lineTo(pts[i].x, pts[i].y);
+    ctx.closePath();
+    ctx.fillStyle = fill;
+    ctx.fill();
+    ctx.strokeStyle = stroke;
+    ctx.lineWidth = lineWidth;
+    ctx.stroke();
+  }
+
+  function drawGrid() {
+    const w = window.innerWidth, h = window.innerHeight;
+    const centerX = w / 2, centerY = h / 2;
+    const stepX = SQRT3 * HEX_SIZE, stepY = 1.5 * HEX_SIZE;
+    const margin = HEX_SIZE * 2;
+    const rMin = Math.floor((-h / 2 - margin) / stepY);
+    const rMax = Math.ceil(( h / 2 + margin) / stepY);
+
+    for (let r = rMin; r <= rMax; r++) {
+      const qMin = Math.floor((-w / 2 - margin) / stepX - r / 2);
+      const qMax = Math.ceil(( w / 2 + margin) / stepX - r / 2);
+      for (let q = qMin; q <= qMax; q++) {
+        const p = hexToPixel(q, r, HEX_SIZE);
+        const x = centerX + p.x, y = centerY + p.y;
+        if (x < -HEX_SIZE*2 || x > w + HEX_SIZE*2 || y < -HEX_SIZE*2 || y > h + HEX_SIZE*2) continue;
+        drawHex(x, y, HEX_SIZE, ((q + r) & 1) ? '#1d2a38' : '#1a2430', '#45627b');
+
+        ctx.fillStyle = 'rgba(220,235,248,0.78)';
+        ctx.font = '12px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(`${q},${r}`, x, y);
+      }
+    }
+  }
+
+  function drawWalls() {
+    const w = window.innerWidth, h = window.innerHeight;
+    const stepX = SQRT3 * HEX_SIZE, stepY = 1.5 * HEX_SIZE;
+    const margin = HEX_SIZE * 2;
+    const rMin = Math.floor((-h / 2 - margin) / stepY);
+    const rMax = Math.ceil(( h / 2 + margin) / stepY);
+
+    for (let r = rMin; r <= rMax; r++) {
+      const qMin = Math.floor((-w / 2 - margin) / stepX - r / 2);
+      const qMax = Math.ceil(( w / 2 + margin) / stepX - r / 2);
+      for (let q = qMin; q <= qMax; q++) {
+        if (!isWall(q, r)) continue;
+        const s = worldToScreen(q, r);
+        drawHex(s.x, s.y, HEX_SIZE, 'rgba(90,90,95,0.88)', 'rgba(230,230,240,0.98)');
+      }
+    }
+  }
+
+  function drawHpBar(x, y, width, height, hp, maxHp, fillColor) {
+    const ratio = clamp(maxHp > 0 ? hp / maxHp : 0, 0, 1);
+    ctx.fillStyle = 'rgba(0,0,0,0.65)';
+    ctx.fillRect(x - width / 2, y, width, height);
+    ctx.fillStyle = fillColor;
+    ctx.fillRect(x - width / 2 + 1, y + 1, (width - 2) * ratio, height - 2);
+    ctx.strokeStyle = 'rgba(255,255,255,0.85)';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(x - width / 2, y, width, height);
+  }
+
+  function drawEnemies() {
+    for (const e of enemies) {
+      const s = worldToScreen(e.qf, e.rf);
+      ctx.beginPath();
+      ctx.arc(s.x, s.y, ENEMY_RADIUS, 0, Math.PI * 2);
+      ctx.fillStyle = '#ff6b6b';
+      ctx.fill();
+      ctx.strokeStyle = '#ffd1d1';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+      drawHpBar(s.x, s.y - 22, 34, 6, e.hp, e.maxHp, '#ff4d4d');
+    }
+  }
+
+  function drawAllies() {
+    const blockMap = buildBlockCountMap();
+
+    for (const a of alliesOnMap) {
+      const s = worldToScreen(a.q, a.r);
+
+      ctx.beginPath();
+      ctx.arc(s.x, s.y, ALLY_BASE_RADIUS + 3, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(20,20,28,0.9)';
+      ctx.fill();
+
+      ctx.beginPath();
+      ctx.arc(s.x, s.y, ALLY_BASE_RADIUS, 0, Math.PI * 2);
+      ctx.fillStyle = a.color;
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(255,255,255,0.92)';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+
+      ctx.fillStyle = '#0e1720';
+      ctx.font = 'bold 14px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(a.mark || '・', s.x, s.y + 0.5);
+
+      drawHpBar(s.x, s.y - 24, 36, 6, a.hp, a.maxHp, '#66dd88');
+
+      // ブロック使用数 표시
+      const used = blockMap.get(cellKey(a.q, a.r)) || 0;
+      ctx.fillStyle = 'rgba(240,245,255,0.92)';
+      ctx.font = '11px sans-serif';
+      ctx.fillText(`${used}/${a.blockCap}`, s.x, s.y + 19);
+    }
+  }
+
+  function drawRangePreview(centerQ, centerR, minRange, maxRange, role) {
+    const fill = role === 'healer' ? 'rgba(239,71,111,0.18)' : 'rgba(76,201,240,0.16)';
+    const stroke = role === 'healer' ? 'rgba(255,130,160,0.55)' : 'rgba(120,220,255,0.50)';
+
+    for (let dq = -maxRange; dq <= maxRange; dq++) {
+      for (let dr = -maxRange; dr <= maxRange; dr++) {
+        const q = centerQ + dq, r = centerR + dr;
+        const d = hexDistance(centerQ, centerR, q, r);
+        if (d < minRange || d > maxRange) continue;
+        const s = worldToScreen(q, r);
+        drawHex(s.x, s.y, HEX_SIZE, fill, stroke, 1.2);
+      }
+    }
+  }
+
+  function addCombatLine(fromQ, fromR, toQ, toR, color, width = 2.5) {
+    const a = worldToScreen(fromQ, fromR);
+    const b = worldToScreen(toQ, toR);
+    combatLines.push({
+      x1: a.x, y1: a.y, x2: b.x, y2: b.y,
+      color, width,
+      ttl: COMBAT_LINE_DURATION_MS,
+      maxTtl: COMBAT_LINE_DURATION_MS
+    });
+  }
+
+  function updateCombatLines(dt) {
+    for (const l of combatLines) l.ttl -= dt;
+    for (let i = combatLines.length - 1; i >= 0; i--) {
+      if (combatLines[i].ttl <= 0) combatLines.splice(i, 1);
+    }
+  }
+
+  function drawCombatLines() {
+    for (const l of combatLines) {
+      const alpha = clamp(l.ttl / l.maxTtl, 0, 1);
+      ctx.beginPath();
+      ctx.moveTo(l.x1, l.y1);
+      ctx.lineTo(l.x2, l.y2);
+      ctx.strokeStyle = l.color.replace('{a}', (0.9 * alpha).toFixed(3));
+      ctx.lineWidth = l.width;
+      ctx.stroke();
+    }
+  }
+
+  function drawEnemyOccupiedCells() {
+    const occupied = new Set();
+    for (const e of enemies) occupied.add(cellKey(e.toQ, e.toR));
+    for (const k of occupied) {
+      const [qStr, rStr] = k.split(',');
+      const s = worldToScreen(Number(qStr), Number(rStr));
+      drawHex(s.x, s.y, HEX_SIZE, 'rgba(120,0,0,0.45)', 'rgba(255,80,80,0.8)');
+    }
+  }
+
+  // =========================================================
+  // UI
+  // =========================================================
+  function getSlotRect(i) {
+    const x = ui.panelX + ui.padding + i * (ui.slotW + ui.slotGap);
+    const y = ui.panelY + 26;
+    return { x, y, w: ui.slotW, h: ui.slotH };
+  }
+
+  const isUnitActive = (u) => point >= u.cost;
+
+  function drawUnitPanel() {
+    ctx.fillStyle = 'rgba(12,16,22,0.88)';
+    ctx.fillRect(ui.panelX, ui.panelY, ui.panelW, ui.panelH);
+    ctx.strokeStyle = 'rgba(120,150,180,0.8)';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(ui.panelX, ui.panelY, ui.panelW, ui.panelH);
+
+    ctx.fillStyle = '#d7e6f6';
+    ctx.font = 'bold 14px sans-serif';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'top';
+    ctx.fillText('UNIT LIST', ui.panelX + 12, ui.panelY + 6);
+
+    const scale = getEnemyScale();
+    ctx.textAlign = 'right';
+    ctx.fillStyle = '#ffd166';
+    ctx.fillText(`POINT: ${Math.floor(point)}`, ui.panelX + ui.panelW - 12, ui.panelY + 6);
+
+    ctx.textAlign = 'left';
+    ctx.fillStyle = '#ffb3b3';
+    ctx.font = '12px sans-serif';
+    ctx.fillText(`Enemy Spawn: ${Math.round(scale.spawnIntervalMs)}ms`, ui.panelX + 12, ui.panelY + ui.panelH - 18);
+
+    for (let i = 0; i < allyCatalog.length; i++) {
+      const u = allyCatalog[i];
+      const rect = getSlotRect(i);
+      const active = isUnitActive(u);
+
+      ctx.fillStyle = active ? 'rgba(36,50,68,0.95)' : 'rgba(28,30,36,0.9)';
+      ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
+      ctx.strokeStyle = active ? 'rgba(143,198,255,0.95)' : 'rgba(100,110,122,0.7)';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(rect.x, rect.y, rect.w, rect.h);
+
+      const faceX = rect.x + 14, faceY = rect.y + 8, faceW = rect.w - 28, faceH = 54;
+      ctx.fillStyle = active ? 'rgba(80,95,118,0.95)' : 'rgba(62,66,76,0.85)';
+      ctx.fillRect(faceX, faceY, faceW, faceH);
+      ctx.strokeStyle = active ? 'rgba(225,240,255,0.95)' : 'rgba(130,135,145,0.8)';
+      ctx.lineWidth = 1.5;
+      ctx.strokeRect(faceX, faceY, faceW, faceH);
+
+      ctx.beginPath();
+      ctx.arc(faceX + faceW / 2, faceY + faceH / 2, 12, 0, Math.PI * 2);
+      ctx.fillStyle = active ? u.color : 'rgba(120,120,125,0.8)';
+      ctx.fill();
+
+      // 記号
+      ctx.fillStyle = '#0f1a24';
+      ctx.font = 'bold 12px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(u.mark, faceX + faceW / 2, faceY + faceH / 2 + 0.5);
+
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'top';
+      ctx.font = '12px sans-serif';
+      ctx.fillStyle = active ? '#e6f1ff' : '#a4a8b0';
+      ctx.fillText(u.name, rect.x + rect.w / 2, rect.y + 66);
+
+      ctx.font = 'bold 12px sans-serif';
+      ctx.fillStyle = active ? '#7CFC9A' : '#ff9f9f';
+      ctx.fillText(`${u.cost} pt`, rect.x + rect.w / 2, rect.y + 82);
+
+      if (!active) {
+        ctx.fillStyle = 'rgba(0,0,0,0.35)';
+        ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
+        ctx.fillStyle = 'rgba(255,255,255,0.85)';
+        ctx.font = 'bold 14px sans-serif';
+        ctx.fillText('LOCK', rect.x + rect.w / 2, rect.y + rect.h / 2 - 8);
+      }
+    }
+  }
+
+  function drawDragPreview() {
+    if (!dragState.active) return;
+    const u = allyCatalog[dragState.catalogIndex];
+    if (!u) return;
+
+    const h = screenToHex(dragState.pointerX, dragState.pointerY);
+    const s = worldToScreen(h.q, h.r);
+    const ok = canPlaceAlly(h.q, h.r);
+
+    drawRangePreview(h.q, h.r, u.minRange, u.maxRange, u.role);
+
+    drawHex(
+      s.x, s.y, HEX_SIZE,
+      ok ? 'rgba(80,180,120,0.28)' : 'rgba(200,70,70,0.28)',
+      ok ? 'rgba(120,255,170,0.95)' : 'rgba(255,120,120,0.95)',
+      2.2
+    );
+
+    ctx.beginPath();
+    ctx.arc(dragState.pointerX, dragState.pointerY, 15, 0, Math.PI * 2);
+    ctx.fillStyle = u.color;
+    ctx.globalAlpha = 0.9;
+    ctx.fill();
+    ctx.globalAlpha = 1;
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    ctx.fillStyle = '#0f1a24';
+    ctx.font = 'bold 13px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(u.mark, dragState.pointerX, dragState.pointerY + 0.5);
+  }
+
+  // =========================================================
+  // Enemy AI
+  // =========================================================
+  function weightedDirsByR(r) {
+    if (r < 0) return [
+      { dir: DIR_LEFT,      w: 0.60 },
+      { dir: DIR_LEFT_DOWN, w: 0.30 },
+      { dir: DIR_LEFT_UP,   w: 0.10 }
+    ];
+    if (r > 0) return [
+      { dir: DIR_LEFT,      w: 0.60 },
+      { dir: DIR_LEFT_UP,   w: 0.30 },
+      { dir: DIR_LEFT_DOWN, w: 0.10 }
+    ];
+    return [
+      { dir: DIR_LEFT,      w: 0.60 },
+      { dir: DIR_LEFT_UP,   w: 0.20 },
+      { dir: DIR_LEFT_DOWN, w: 0.20 }
+    ];
+  }
+
+  function pickWeighted(items) {
+    let total = 0;
+    for (const it of items) total += it.w;
+    if (total <= 0) return null;
+    let x = Math.random() * total;
+    for (const it of items) {
+      x -= it.w;
+      if (x <= 0) return it;
+    }
+    return items[items.length - 1];
+  }
+
+  function spawnEnemyAt(q, r) {
+    const scale = getEnemyScale();
+    const hp = Math.round(BASE_ENEMY_HP * scale.hpMul);
+    const atk = Math.round(BASE_ENEMY_ATK * scale.atkMul);
+
+    enemies.push({
+      id: enemyIdSeq++,
+      qf: q, rf: r,
+      fromQ: q, fromR: r,
+      toQ: q, toR: r,
+      moveElapsed: MOVE_DURATION_MS,
+      maxHp: hp,
+      hp: hp,
+      atk: atk,
+      atkIntervalMs: ENEMY_ATK_INTERVAL_MS,
+      atkTimerMs: 0,
+
+      // 足止め状態
+      blocking: false,
+      blockTargetQ: 0,
+      blockTargetR: 0
+    });
+  }
+
+  function spawnWave() {
+    for (const sp of SPAWN_POINTS) spawnEnemyAt(sp.q, sp.r);
+  }
+
+  // 敵が「今いる位置から見て左上/左/左下」にいる味方候補を取得
+  function getFrontAdjacentAllies(currentQ, currentR) {
+    const candidates = [
+      { q: currentQ + DIR_LEFT_UP.q,   r: currentR + DIR_LEFT_UP.r   },
+      { q: currentQ + DIR_LEFT.q,      r: currentR + DIR_LEFT.r      },
+      { q: currentQ + DIR_LEFT_DOWN.q, r: currentR + DIR_LEFT_DOWN.r }
+    ];
+
+    const out = [];
+    for (const c of candidates) {
+      const ally = alliesOnMap.find(a => a.q === c.q && a.r === c.r);
+      if (ally) out.push(ally);
+    }
+    return out;
+  }
+
+  function beginNextStep(e, reservedTargets, blockCountMap) {
+    const currentQ = e.toQ, currentR = e.toR;
+
+    // 先に blocking解除（再評価）
+    e.blocking = false;
+
+    // 1) 前方3マスに味方がいるか確認
+    const frontAllies = getFrontAdjacentAllies(currentQ, currentR);
+
+    if (frontAllies.length > 0) {
+      // ブロック余裕がある味方を探す（使用数 < cap）
+      frontAllies.sort((a, b) => {
+        const ua = blockCountMap.get(cellKey(a.q, a.r)) || 0;
+        const ub = blockCountMap.get(cellKey(b.q, b.r)) || 0;
+        return ua - ub;
+      });
+
+      const blocker = frontAllies.find(a => {
+        const used = blockCountMap.get(cellKey(a.q, a.r)) || 0;
+        return used < a.blockCap;
+      });
+
+      if (blocker) {
+        // 2) 止められる -> その場停止してこの味方を攻撃対象に固定
+        e.fromQ = currentQ;
+        e.fromR = currentR;
+        e.toQ = currentQ;
+        e.toR = currentR;
+        e.moveElapsed = 0;
+
+        e.blocking = true;
+        e.blockTargetQ = blocker.q;
+        e.blockTargetR = blocker.r;
+
+        // 予約＆ブロック数更新
+        reservedTargets.add(cellKey(e.toQ, e.toR));
+        const bk = cellKey(blocker.q, blocker.r);
+        blockCountMap.set(bk, (blockCountMap.get(bk) || 0) + 1);
+        return;
+      }
+      // 3) 全員cap超過 -> 進行
+    }
+
+    // 通常移動候補
+    const weighted = weightedDirsByR(currentR);
+    const available = [];
+
+    for (const cand of weighted) {
+      const nq = currentQ + cand.dir.q;
+      const nr = currentR + cand.dir.r;
+      const k = cellKey(nq, nr);
+      if (isWall(nq, nr)) continue;
+      if (isAllyOccupied(nq, nr)) continue;
+      if (reservedTargets.has(k)) continue;
+      available.push({ dir: cand.dir, w: cand.w, q: nq, r: nr });
+    }
+
+    let targetQ = currentQ, targetR = currentR;
+    if (available.length > 0) {
+      const chosen = pickWeighted(available);
+      targetQ = chosen.q;
+      targetR = chosen.r;
+    }
+
+    e.fromQ = currentQ;
+    e.fromR = currentR;
+    e.toQ = targetQ;
+    e.toR = targetR;
+    e.moveElapsed = 0;
+    reservedTargets.add(cellKey(e.toQ, e.toR));
+  }
+
+  function updateEnemies(dt) {
+    for (const e of enemies) e.moveElapsed += dt;
+
+    const arrived = enemies
+      .filter(e => e.moveElapsed >= MOVE_DURATION_MS)
+      .sort((a, b) => a.id - b.id);
+
+    const reservedTargets = new Set();
+    for (const e of enemies) reservedTargets.add(cellKey(e.toQ, e.toR));
+
+    // 現時点のブロック数を構築
+    const blockCountMap = buildBlockCountMap();
+
+    for (const e of arrived) {
+      // 旧状態の予約/ブロックは一旦外す
+      reservedTargets.delete(cellKey(e.toQ, e.toR));
+      if (e.blocking) {
+        const bk = cellKey(e.blockTargetQ, e.blockTargetR);
+        const cur = blockCountMap.get(bk) || 0;
+        blockCountMap.set(bk, Math.max(0, cur - 1));
+      }
+
+      e.moveElapsed -= MOVE_DURATION_MS;
+      e.qf = e.toQ;
+      e.rf = e.toR;
+
+      beginNextStep(e, reservedTargets, blockCountMap);
+    }
+
+    for (const e of enemies) {
+      const t = clamp(e.moveElapsed / MOVE_DURATION_MS, 0, 1);
+      e.qf = e.fromQ + (e.toQ - e.fromQ) * t;
+      e.rf = e.fromR + (e.toR - e.fromR) * t;
+    }
+
+    enemies = enemies.filter(e => {
+      if (e.hp <= 0) return false;
+      const s = worldToScreen(e.qf, e.rf);
+      return s.x > -HEX_SIZE * 2;
+    });
+  }
+
+  // =========================================================
+  // Combat
+  // =========================================================
+  function updateCombat(dt) {
+    // 味方行動
+    for (const a of alliesOnMap) {
+      a.atkTimerMs += dt;
+
+      if (a.role === 'attacker') {
+        const targets = enemies.filter(e => {
+          if (e.hp <= 0) return false;
+          const d = hexDistance(a.q, a.r, e.toQ, e.toR);
+          return d >= a.minRange && d <= a.maxRange;
+        });
+
+        if (targets.length === 0) {
+          a.atkTimerMs = 0;
+        } else {
+          while (a.atkTimerMs >= a.atkIntervalMs) {
+            a.atkTimerMs -= a.atkIntervalMs;
+            targets.sort((e1, e2) =>
+              hexDistance(a.q, a.r, e1.toQ, e1.toR) - hexDistance(a.q, a.r, e2.toQ, e2.toR)
+            );
+            const t = targets.find(x => x.hp > 0);
+            if (!t) break;
+            t.hp -= a.atk;
+            addCombatLine(a.q, a.r, t.toQ, t.toR, 'rgba(120,220,255,{a})', 2.8);
+          }
+        }
+      } else if (a.role === 'healer') {
+        const friends = alliesOnMap.filter(f => {
+          if (f.hp <= 0 || f.hp >= f.maxHp) return false;
+          const d = hexDistance(a.q, a.r, f.q, f.r);
+          return d >= a.minRange && d <= a.maxRange;
+        });
+
+        if (friends.length === 0) {
+          a.atkTimerMs = 0;
+        } else {
+          while (a.atkTimerMs >= a.atkIntervalMs) {
+            a.atkTimerMs -= a.atkIntervalMs;
+            friends.sort((f1, f2) => (f2.maxHp - f2.hp) - (f1.maxHp - f1.hp));
+            const t = friends[0];
+            if (!t) break;
+            t.hp = Math.min(t.maxHp, t.hp + a.heal);
+            addCombatLine(a.q, a.r, t.q, t.r, 'rgba(255,120,180,{a})', 2.8);
+          }
+        }
+      }
+    }
+
+    // 敵行動
+    for (const e of enemies) {
+      let targets = [];
+
+      // blocking中は固定ターゲット優先
+      if (e.blocking) {
+        const fixed = alliesOnMap.find(a => a.q === e.blockTargetQ && a.r === e.blockTargetR && a.hp > 0);
+        if (fixed) targets = [fixed];
+        else e.blocking = false; // 対象消滅
+      }
+
+      // 非blocking時は従来どおり射程1
+      if (!e.blocking) {
+        targets = alliesOnMap.filter(a => a.hp > 0 && hexDistance(e.toQ, e.toR, a.q, a.r) <= 1);
+      }
+
+      if (targets.length === 0) {
+        e.atkTimerMs = 0;
+        continue;
+      }
+
+      e.atkTimerMs += dt;
+      while (e.atkTimerMs >= e.atkIntervalMs) {
+        e.atkTimerMs -= e.atkIntervalMs;
+        const t = targets[0];
+        if (!t || t.hp <= 0) break;
+        t.hp -= e.atk;
+        addCombatLine(e.toQ, e.toR, t.q, t.r, 'rgba(255,120,120,{a})', 2.6);
+      }
+    }
+
+    for (let i = alliesOnMap.length - 1; i >= 0; i--) {
+      if (alliesOnMap[i].hp <= 0) alliesOnMap.splice(i, 1);
+    }
+    for (let i = enemies.length - 1; i >= 0; i--) {
+      if (enemies[i].hp <= 0) enemies.splice(i, 1);
+    }
+  }
+
+  // =========================================================
+  // Input
+  // =========================================================
+  function findCatalogIndexAt(x, y) {
+    for (let i = 0; i < allyCatalog.length; i++) {
+      const rect = getSlotRect(i);
+      if (isInsideRect(x, y, rect.x, rect.y, rect.w, rect.h)) return i;
+    }
+    return -1;
+  }
+
+  function onPointerDown(evt) {
+    const p = getPointerPos(evt);
+    dragState.pointerX = p.x;
+    dragState.pointerY = p.y;
+    const idx = findCatalogIndexAt(p.x, p.y);
+    if (idx >= 0) {
+      const u = allyCatalog[idx];
+      if (isUnitActive(u)) {
+        dragState.active = true;
+        dragState.catalogIndex = idx;
+      }
+    }
+  }
+
+  function onPointerMove(evt) {
+    const p = getPointerPos(evt);
+    dragState.pointerX = p.x;
+    dragState.pointerY = p.y;
+  }
+
+  function onPointerUp(evt) {
+    const p = getPointerPos(evt);
+    dragState.pointerX = p.x;
+    dragState.pointerY = p.y;
+    if (!dragState.active) return;
+
+    const u = allyCatalog[dragState.catalogIndex];
+    if (u && point >= u.cost) {
+      const h = screenToHex(p.x, p.y);
+      if (canPlaceAlly(h.q, h.r)) {
+        alliesOnMap.push({
+          q: h.q,
+          r: h.r,
+          typeId: u.id,
+          color: u.color,
+          name: u.name,
+          mark: u.mark,
+          cost: u.cost,
+
+          role: u.role,
+          minRange: u.minRange,
+          maxRange: u.maxRange,
+
+          blockCap: u.blockCap,
+
+          maxHp: u.maxHp,
+          hp: u.maxHp,
+
+          atk: u.atk || 0,
+          heal: u.heal || 0,
+
+          atkIntervalMs: u.atkIntervalMs,
+          atkTimerMs: 0
+        });
+        point -= u.cost;
+      }
+    }
+
+    dragState.active = false;
+    dragState.catalogIndex = -1;
+  }
+
+  canvas.addEventListener('pointerdown', onPointerDown);
+  canvas.addEventListener('pointermove', onPointerMove);
+  canvas.addEventListener('pointerup', onPointerUp);
+  canvas.addEventListener('pointercancel', onPointerUp);
+  canvas.addEventListener('pointerleave', onPointerUp);
+
+  // =========================================================
+  // Update / Render
+  // =========================================================
+  function update(dt) {
+    elapsedMs += dt;
+    point = Math.min(MAX_POINT, point + (dt / 1000) * POINT_GAIN_PER_SEC);
+
+    const scale = getEnemyScale();
+    spawnTimer += dt;
+    while (spawnTimer >= scale.spawnIntervalMs) {
+      spawnTimer -= scale.spawnIntervalMs;
+      spawnWave();
+    }
+
+    updateEnemies(dt);
+    updateCombat(dt);
+    updateCombatLines(dt);
+  }
+
+  function render() {
+    ctx.clearRect(0, 0, window.innerWidth, window.innerHeight);
+    ctx.fillStyle = '#10151c';
+    ctx.fillRect(0, 0, window.innerWidth, window.innerHeight);
+
+    drawGrid();
+    drawWalls();
+    drawEnemyOccupiedCells();
+
+    drawAllies();
+    drawEnemies();
+    drawCombatLines();
+
+    drawUnitPanel();
+    drawDragPreview();
+  }
+
+  function loop(t) {
+    if (!lastTime) lastTime = t;
+    const dt = Math.min(50, t - lastTime);
+    lastTime = t;
+
+    update(dt);
+    render();
+    requestAnimationFrame(loop);
+  }
+
+  resize();
+  requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>
