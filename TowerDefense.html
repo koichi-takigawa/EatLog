@@ -1,4 +1,4 @@
-<!doctype html>
+﻿<!doctype html>
 <html lang="ja">
 <head>
   <meta charset="UTF-8" />
@@ -58,10 +58,10 @@
   const DIR_LEFT_UP   = { q: 0,  r: -1 };
   const DIR_LEFT_DOWN = { q: -1, r: 1  };
 
-  // 難易度スケーリング（全て1/5）
-  const HP_GROWTH_PER_SEC = 0.003;      // 以前0.015
-  const ATK_GROWTH_PER_SEC = 0.002;     // 以前0.010
-  const SPAWN_SPEEDUP_PER_SEC = 0.002;  // 以前0.010→1/5
+  // 難易度スケーリング
+  const HP_GROWTH_PER_SEC = 0.003;
+  const ATK_GROWTH_PER_SEC = 0.002;
+  const SPAWN_SPEEDUP_PER_SEC = 0.002;
 
   // 味方ポイント
   const POINT_GAIN_PER_SEC = 2;
@@ -72,6 +72,11 @@
 
   // 味方見た目
   const ALLY_BASE_RADIUS = 14;
+
+  // 開始演出・ゲームオーバー
+  const READY_MS = 900;
+  const START_MS = 700;
+  const GAMEOVER_ESCAPE_COUNT = 10;
 
   function buildCatalog() {
     // ユニットのマスターデータ。配置時にはこの定義を複製して実体化する。
@@ -97,6 +102,12 @@
   let lastTime = 0;
   let elapsedMs = 0;
   let point = 0;
+
+  // 追加: 進行状態・スコア
+  let phase = 'ready'; // 'ready' | 'start' | 'playing' | 'gameover'
+  let phaseTimerMs = 0;
+  let escapedEnemies = 0;
+  let totalDamageDealt = 0;
 
   let dragState = { active: false, catalogIndex: -1, pointerX: 0, pointerY: 0 };
   const combatLines = [];
@@ -318,8 +329,6 @@
   }
 
   function drawAllies() {
-    const blockMap = buildBlockCountMap();
-
     for (const a of alliesOnMap) {
       const s = worldToScreen(a.q, a.r);
 
@@ -447,6 +456,76 @@
     }
   }
 
+  // 画面上部HUD（スコア/到達数）
+  function drawTopHud() {
+    ctx.fillStyle = 'rgba(8,12,18,0.65)';
+    ctx.fillRect(12, 12, 330, 72);
+    ctx.strokeStyle = 'rgba(160,200,255,0.55)';
+    ctx.lineWidth = 1.5;
+    ctx.strokeRect(12, 12, 330, 72);
+
+    ctx.fillStyle = '#ffd166';
+    ctx.font = 'bold 20px sans-serif';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'top';
+    ctx.fillText(`SCORE: ${Math.floor(totalDamageDealt)}`, 24, 22);
+
+    ctx.fillStyle = '#ff9aa2';
+    ctx.font = 'bold 16px sans-serif';
+    ctx.fillText(`到達: ${escapedEnemies} / ${GAMEOVER_ESCAPE_COUNT}`, 24, 50);
+  }
+
+  function drawCenterOverlay(title, sub) {
+    const w = window.innerWidth, h = window.innerHeight;
+    ctx.fillStyle = 'rgba(0,0,0,0.45)';
+    ctx.fillRect(0, 0, w, h);
+
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+
+    ctx.fillStyle = '#ffffff';
+    ctx.font = 'bold 56px sans-serif';
+    ctx.fillText(title, w / 2, h / 2 - 20);
+
+    if (sub) {
+      ctx.font = 'bold 24px sans-serif';
+      ctx.fillStyle = '#d9e7ff';
+      ctx.fillText(sub, w / 2, h / 2 + 32);
+    }
+  }
+
+  function drawResultOverlay() {
+    const w = window.innerWidth, h = window.innerHeight;
+    ctx.fillStyle = 'rgba(0,0,0,0.62)';
+    ctx.fillRect(0, 0, w, h);
+
+    const boxW = Math.min(560, w - 40);
+    const boxH = 280;
+    const x = (w - boxW) / 2;
+    const y = (h - boxH) / 2;
+
+    ctx.fillStyle = 'rgba(16,24,34,0.96)';
+    ctx.fillRect(x, y, boxW, boxH);
+    ctx.strokeStyle = 'rgba(160,200,255,0.9)';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(x, y, boxW, boxH);
+
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+
+    ctx.fillStyle = '#ff8a8a';
+    ctx.font = 'bold 44px sans-serif';
+    ctx.fillText('GAME OVER', w / 2, y + 58);
+
+    ctx.fillStyle = '#ffd166';
+    ctx.font = 'bold 36px sans-serif';
+    ctx.fillText(`SCORE: ${Math.floor(totalDamageDealt)}`, w / 2, y + 130);
+
+    ctx.fillStyle = '#d8e6ff';
+    ctx.font = 'bold 22px sans-serif';
+    ctx.fillText(`到達した敵: ${escapedEnemies} / ${GAMEOVER_ESCAPE_COUNT}`, w / 2, y + 182);
+  }
+
   // =========================================================
   // UI
   // =========================================================
@@ -475,7 +554,6 @@
     ctx.textBaseline = 'top';
     ctx.fillText('UNIT LIST', ui.panelX + 12, ui.panelY + 6);
 
-    const scale = getEnemyScale();
     ctx.textAlign = 'right';
     ctx.fillStyle = '#ffd166';
     ctx.fillText(`POINT: ${Math.floor(point)}`, ui.panelX + ui.panelW - 12, ui.panelY + 6);
@@ -761,11 +839,23 @@
       e.rf = e.fromR + (e.toR - e.fromR) * t;
     }
 
-    enemies = enemies.filter(e => {
-      if (e.hp <= 0) return false;
-      // 退場条件: q + r / 2 <= -15
-      return (e.qf + e.rf / 2) > -15;
-    });
+    // 左側到達判定 + 生存敵再構築
+    const survived = [];
+    for (const e of enemies) {
+      if (e.hp <= 0) continue;
+
+      // 退場条件を「左側到達」として扱う
+      if ((e.qf + e.rf / 2) <= -15) {
+        escapedEnemies += 1;
+        continue;
+      }
+      survived.push(e);
+    }
+    enemies = survived;
+
+    if (escapedEnemies >= GAMEOVER_ESCAPE_COUNT) {
+      phase = 'gameover';
+    }
   }
 
   // =========================================================
@@ -796,9 +886,13 @@
             );
             const t = targets.find(x => x.hp > 0);
             if (!t) break;
-            t.hp -= a.atk;
 
-            addFloatingText(t.toQ, t.toR, `-${a.atk}`, '#ffd166');
+            const beforeHp = t.hp;
+            const dealt = Math.min(a.atk, Math.max(0, beforeHp));
+            t.hp = beforeHp - dealt;
+            totalDamageDealt += dealt;
+
+            addFloatingText(t.toQ, t.toR, `-${dealt}`, '#ffd166');
             addCombatLine(a.q, a.r, t.toQ, t.toR, 'rgba(120,220,255,{a})', 2.8);
           }
         }
@@ -884,6 +978,7 @@
   }
 
   function onPointerDown(evt) {
+    if (phase !== 'playing') return; // 開始演出中/ゲームオーバー中は操作無効
     const p = getPointerPos(evt);
     dragState.pointerX = p.x;
     dragState.pointerY = p.y;
@@ -956,21 +1051,49 @@
   // =========================================================
   // 毎フレームの状態更新(update)と描画(render)のメインループ。
   function update(dt) {
+
+    // ゲームオーバー中は停止
+    if (phase === 'gameover') return;
+
+    // Ready
+    if (phase === 'ready') {
+      phaseTimerMs += dt;
+      if (phaseTimerMs >= READY_MS) {
+        phase = 'start';
+        phaseTimerMs = 0;
+      }
+      return;
+    }
+
+    // Start
+    if (phase === 'start') {
+      phaseTimerMs += dt;
+      if (phaseTimerMs >= START_MS) {
+        phase = 'playing';
+        phaseTimerMs = 0;
+      }
+      return;
+    }
+
+    // playing
+
     // ドラッグ中はゲーム内時間を20%で進める（スローモーション）
     const timeScale = dragState.active ? 0.2 : 1.0;
     const effectiveDt = dt * timeScale;
-  
+
     elapsedMs += effectiveDt;
     point = Math.min(MAX_POINT, point + (effectiveDt / 1000) * POINT_GAIN_PER_SEC);
-  
+
     const scale = getEnemyScale();
     spawnTimer += effectiveDt;
     while (spawnTimer >= scale.spawnIntervalMs) {
       spawnTimer -= scale.spawnIntervalMs;
       spawnWave();
     }
-  
+
     updateEnemies(effectiveDt);
+    if (phase === 'gameover') return; // 到達10体で即停止
+
     updateCombat(effectiveDt);
     updateCombatLines(effectiveDt);
     updateFloatingTexts(effectiveDt);
@@ -992,6 +1115,15 @@
 
     drawUnitPanel();
     drawDragPreview();
+    drawTopHud();
+
+    if (phase === 'ready') {
+      drawCenterOverlay('READY', null);
+    } else if (phase === 'start') {
+      drawCenterOverlay('START', null);
+    } else if (phase === 'gameover') {
+      drawResultOverlay();
+    }
   }
 
   function loop(t) {
@@ -1004,6 +1136,7 @@
     requestAnimationFrame(loop);
   }
 
+  // 初期化
   resize();
   requestAnimationFrame(loop);
 })();
