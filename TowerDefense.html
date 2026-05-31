@@ -78,6 +78,10 @@
   const START_MS = 700;
   const GAMEOVER_ESCAPE_COUNT = 10;
 
+  // 速度変更UI
+  const SPEED_OPTIONS = [0.4, 0.6, 0.8, 1.0, 1.25, 1.5, 2.0];
+  let gameSpeed = 0.8; // デフォルト 80%
+
   function buildCatalog() {
     // ユニットのマスターデータ。配置時にはこの定義を複製して実体化する。
     // blockCap は「同時に足止めできる敵の上限数」を表す。
@@ -103,7 +107,7 @@
   let elapsedMs = 0;
   let point = 0;
 
-  // 追加: 進行状態・スコア
+  // 進行状態・スコア
   let phase = 'ready'; // 'ready' | 'start' | 'playing' | 'gameover'
   let phaseTimerMs = 0;
   let escapedEnemies = 0;
@@ -118,7 +122,11 @@
 
   const ui = {
     panelX: 16, panelY: 0, panelW: 460, panelH: 140,
-    slotW: 98, slotH: 104, slotGap: 10, padding: 12
+    slotW: 98, slotH: 104, slotGap: 10, padding: 12,
+
+    // 右上速度UI
+    speedX: 0, speedY: 16, speedW: 292, speedH: 74,
+    speedBtnW: 36, speedBtnH: 28, speedGap: 4, speedPad: 10
   };
 
   // =========================================================
@@ -127,6 +135,7 @@
   const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
   const cellKey = (q, r) => `${q},${r}`;
   const isInsideRect = (px, py, x, y, w, h) => px >= x && px <= x + w && py >= y && py <= y + h;
+  const speedToLabel = (s) => `${Math.round(s * 100)}%`;
 
   function getPointerPos(evt) {
     const rect = canvas.getBoundingClientRect();
@@ -159,6 +168,7 @@
     canvas.height = Math.floor(window.innerHeight * dpr);
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ui.panelY = window.innerHeight - ui.panelH - 16;
+    ui.speedX = window.innerWidth - ui.speedW - 16;
   }
   window.addEventListener('resize', resize);
 
@@ -473,6 +483,53 @@
     ctx.fillStyle = '#ff9aa2';
     ctx.font = 'bold 16px sans-serif';
     ctx.fillText(`到達: ${escapedEnemies} / ${GAMEOVER_ESCAPE_COUNT}`, 24, 50);
+  }
+
+  // 速度UI
+  function getSpeedButtonRect(i) {
+    const x = ui.speedX + ui.speedPad + i * (ui.speedBtnW + ui.speedGap);
+    const y = ui.speedY + 30;
+    return { x, y, w: ui.speedBtnW, h: ui.speedBtnH };
+  }
+
+  function findSpeedIndexAt(x, y) {
+    for (let i = 0; i < SPEED_OPTIONS.length; i++) {
+      const r = getSpeedButtonRect(i);
+      if (isInsideRect(x, y, r.x, r.y, r.w, r.h)) return i;
+    }
+    return -1;
+  }
+
+  function drawSpeedPanel() {
+    ctx.fillStyle = 'rgba(8,12,18,0.72)';
+    ctx.fillRect(ui.speedX, ui.speedY, ui.speedW, ui.speedH);
+    ctx.strokeStyle = 'rgba(160,200,255,0.55)';
+    ctx.lineWidth = 1.5;
+    ctx.strokeRect(ui.speedX, ui.speedY, ui.speedW, ui.speedH);
+
+    ctx.fillStyle = '#d7e6f6';
+    ctx.font = 'bold 13px sans-serif';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'top';
+    ctx.fillText(`SPEED: ${speedToLabel(gameSpeed)}`, ui.speedX + 10, ui.speedY + 8);
+
+    for (let i = 0; i < SPEED_OPTIONS.length; i++) {
+      const sp = SPEED_OPTIONS[i];
+      const r = getSpeedButtonRect(i);
+      const selected = Math.abs(sp - gameSpeed) < 0.0001;
+
+      ctx.fillStyle = selected ? 'rgba(120,190,255,0.95)' : 'rgba(45,58,76,0.95)';
+      ctx.fillRect(r.x, r.y, r.w, r.h);
+      ctx.strokeStyle = selected ? 'rgba(230,245,255,1)' : 'rgba(130,150,175,0.75)';
+      ctx.lineWidth = 1.3;
+      ctx.strokeRect(r.x, r.y, r.w, r.h);
+
+      ctx.fillStyle = selected ? '#0d1824' : '#e4efff';
+      ctx.font = 'bold 11px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(speedToLabel(sp), r.x + r.w / 2, r.y + r.h / 2 + 0.5);
+    }
   }
 
   function drawCenterOverlay(title, sub) {
@@ -982,6 +1039,16 @@
     const p = getPointerPos(evt);
     dragState.pointerX = p.x;
     dragState.pointerY = p.y;
+
+    // 速度UIを最優先
+    const speedIdx = findSpeedIndexAt(p.x, p.y);
+    if (speedIdx >= 0) {
+      gameSpeed = SPEED_OPTIONS[speedIdx];
+      return;
+    }
+
+    if (phase !== 'playing') return;
+
     const idx = findCatalogIndexAt(p.x, p.y);
     if (idx >= 0) {
       const u = allyCatalog[idx];
@@ -1078,8 +1145,8 @@
     // playing
 
     // ドラッグ中はゲーム内時間を20%で進める（スローモーション）
-    const timeScale = dragState.active ? 0.2 : 1.0;
-    const effectiveDt = dt * timeScale;
+    const dragSlow = dragState.active ? 0.2 : 1.0;
+    const effectiveDt = dt * gameSpeed * dragSlow;
 
     elapsedMs += effectiveDt;
     point = Math.min(MAX_POINT, point + (effectiveDt / 1000) * POINT_GAIN_PER_SEC);
@@ -1116,6 +1183,7 @@
     drawUnitPanel();
     drawDragPreview();
     drawTopHud();
+    drawSpeedPanel();
 
     if (phase === 'ready') {
       drawCenterOverlay('READY', null);
