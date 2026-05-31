@@ -432,11 +432,6 @@
     ctx.fillStyle = '#ffd166';
     ctx.fillText(`POINT: ${Math.floor(point)}`, ui.panelX + ui.panelW - 12, ui.panelY + 6);
 
-    ctx.textAlign = 'left';
-    ctx.fillStyle = '#ffb3b3';
-    ctx.font = '12px sans-serif';
-    ctx.fillText(`Enemy Spawn: ${Math.round(scale.spawnIntervalMs)}ms`, ui.panelX + 12, ui.panelY + ui.panelH - 18);
-
     for (let i = 0; i < allyCatalog.length; i++) {
       const u = allyCatalog[i];
       const rect = getSlotRect(i);
