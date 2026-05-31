@@ -190,12 +190,14 @@
   // 壁・配置
   // =========================================================
   function isWall(q, r) {
-    return (r === -7 || r === 7 || (q === 1 && r === 0));
+    return (r <= -7 || r >= 7 || (q === 1 && r === 0));
   }
   const isAllyOccupied = (q, r) => alliesOnMap.some(a => a.q === q && a.r === r);
   const isEnemyTargetReserved = (q, r) => enemies.some(e => e.toQ === q && e.toR === r);
 
   function canPlaceAlly(q, r) {
+    // 配置可能エリア: q + r / 2.0 <= 0
+    if (q + r / 2.0 > 0) return false;
     if (isWall(q, r)) return false;
     if (isAllyOccupied(q, r)) return false;
     if (isEnemyTargetReserved(q, r)) return false;
@@ -761,8 +763,8 @@
 
     enemies = enemies.filter(e => {
       if (e.hp <= 0) return false;
-      const s = worldToScreen(e.qf, e.rf);
-      return s.x > -HEX_SIZE * 2;
+      // 退場条件: q + r / 2 <= -15
+      return (e.qf + e.rf / 2) > -15;
     });
   }
 
