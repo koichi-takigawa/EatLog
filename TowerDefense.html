@@ -18,19 +18,36 @@
     }
     canvas {
       display: block;
-      width: 100vw;
-      height: 100vh;
       cursor: default;
     }
   </style>
 </head>
 <body>
 <canvas id="game"></canvas>
+<button id="fsBtn" type="button">⛶ Fullscreen</button>
 
 <script>
 (() => {
   const canvas = document.getElementById('game');
-  const ctx = canvas.getContext('2d');
+  const fsBtn = document.getElementById('fsBtn');
+
+  // =========================================================
+  // Viewport / Render target
+  // =========================================================
+  // 描画は固定1600x900のオフスクリーンへ行い、最後に表示キャンバスへ転送する。
+  const INTERNAL_W = 1600;
+  const INTERNAL_H = 900;
+  const NORMAL_VIEW_W = 1280;
+  const NORMAL_VIEW_H = 720;
+
+  const offscreen = document.createElement('canvas');
+  offscreen.width = INTERNAL_W;
+  offscreen.height = INTERNAL_H;
+  const ctx = offscreen.getContext('2d');
+  const screenCtx = canvas.getContext('2d');
+
+  let isFullscreenMode = false;
+  let viewport = { x: 0, y: 0, w: NORMAL_VIEW_W, h: NORMAL_VIEW_H };
 
   // =========================================================
   // 基本設定
@@ -87,7 +104,7 @@
 
   // 速度変更UI
   const SPEED_OPTIONS = [0, 0.5, 0.75, 1.0, 1.25, 1.5, 2.0];
-  let gameSpeed = 0.8; // デフォルトは80%
+  let gameSpeed = 0.75; // デフォルトは75%
 
   function buildCatalog() {
     // ユニットのマスターデータ。配置時にはこの定義を複製して実体化する。
@@ -174,6 +191,127 @@
   const speedToLabel = (s) => `${Math.round(s * 100)}%`;
 
   function getPointerPos(evt) {
+    // 画面座標 -> ゲーム内部座標(1600x900)へ変換
+    const rect = canvas.getBoundingClientRect();
+    const sx = evt.clientX - rect.left;
+    const sy = evt.clientY - rect.top;
+
+    const vx = viewport.x;
+    const vy = viewport.y;
+    const vw = viewport.w;
+    const vh = viewport.h;
+
+    // レターボックス外をクランプ
+    const clampedX = clamp(sx, vx, vx + vw);
+    const clampedY = clamp(sy, vy, vy + vh);
+
+    return {
+      x: (clampedX - vx) * (INTERNAL_W / vw),
+      y: (clampedY - vy) * (INTERNAL_H / vh)
+    };
+  }
+
+  function getViewportForWindow() {
+    const ww = window.innerWidth;
+    const wh = window.innerHeight;
+    const targetRatio = 16 / 9;
+
+    if (!isFullscreenMode) {
+      // 通常時は1280x720固定表示（中央）
+      const w = Math.min(NORMAL_VIEW_W, ww);
+      const h = Math.min(NORMAL_VIEW_H, wh);
+      return {
+        x: Math.floor((ww - w) / 2),
+        y: Math.floor((wh - h) / 2),
+        w,
+        h
+      };
+    }
+
+    // フルスクリーン時: 画面内最大の16:9
+    let w = ww;
+    let h = Math.floor(w / targetRatio);
+    if (h > wh) {
+      h = wh;
+      w = Math.floor(h * targetRatio);
+    }
+    return {
+      x: Math.floor((ww - w) / 2),
+      y: Math.floor((wh - h) / 2),
+      w,
+      h
+    };
+  }
+
+  function syncFullscreenState() {
+    isFullscreenMode = !!document.fullscreenElement;
+    viewport = getViewportForWindow();
+    updateUiLayout();
+    fsBtn.textContent = isFullscreenMode ? '🡼 Exit Fullscreen' : '⛶ Fullscreen';
+  }
+
+  function updateUiLayout() {
+    // 既存UIは内部座標系(1600x900)に固定して配置
+    ui.panelY = INTERNAL_H - ui.panelH - 16;
+    ui.speedX = INTERNAL_W - ui.speedW - 16;
+  }
+
+  function positionFsButton() {
+    // ボタンは表示領域(レターボックス内)の右下
+    const w = 170;
+    const h = 38;
+    fsBtn.style.position = 'fixed';
+    fsBtn.style.left = `${viewport.x + viewport.w - w - 12}px`;
+    fsBtn.style.top = `${viewport.y + viewport.h - h - 12}px`;
+    fsBtn.style.width = `${w}px`;
+    fsBtn.style.height = `${h}px`;
+    fsBtn.style.zIndex = '20';
+    fsBtn.style.border = '1px solid rgba(180,210,255,0.9)';
+    fsBtn.style.background = 'rgba(20,30,45,0.88)';
+    fsBtn.style.color = '#e8f1ff';
+    fsBtn.style.borderRadius = '8px';
+    fsBtn.style.font = 'bold 14px sans-serif';
+    fsBtn.style.cursor = 'pointer';
+  }
+
+  function resize() {
+    const dpr = window.devicePixelRatio || 1;
+    canvas.width = Math.floor(window.innerWidth * dpr);
+    canvas.height = Math.floor(window.innerHeight * dpr);
+    screenCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    screenCtx.imageSmoothingEnabled = true;
+
+    viewport = getViewportForWindow();
+    updateUiLayout();
+    positionFsButton();
+  }
+
+  window.addEventListener('resize', resize);
+  document.addEventListener('fullscreenchange', () => {
+    syncFullscreenState();
+    resize();
+  });
+
+  fsBtn.addEventListener('click', async () => {
+    try {
+      if (!document.fullscreenElement) {
+        await document.documentElement.requestFullscreen();
+      } else {
+        await document.exitFullscreen();
+      }
+    } catch (e) {
+      // ユーザー操作失敗時は無視
+    }
+  });
+
+  // 既存の関数定義を上書き（旧getPointerPos/resizeを置き換え）
+  function legacyNoop() {}
+  window.removeEventListener?.('resize', legacyNoop);
+
+  // =========================================================
+  // 既存ユーティリティ
+  // =========================================================
+  function originalGetPointerPos(evt) {
     const rect = canvas.getBoundingClientRect();
     return { x: evt.clientX - rect.left, y: evt.clientY - rect.top };
   }
@@ -198,19 +336,6 @@
   // =========================================================
   // Resize
   // =========================================================
-  function resize() {
-    const dpr = window.devicePixelRatio || 1;
-    canvas.width = Math.floor(window.innerWidth * dpr);
-    canvas.height = Math.floor(window.innerHeight * dpr);
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    ui.panelY = window.innerHeight - ui.panelH - 16;
-    ui.speedX = window.innerWidth - ui.speedW - 16;
-  }
-  window.addEventListener('resize', resize);
-
-  // =========================================================
-  // Hex変換
-  // =========================================================
   // 画面座標系とヘックス座標系の相互変換を集約する。
   // 入力（ドラッグ配置）と描画（ユニット/敵の位置決定）の両方で利用する。
   function hexToPixel(q, r, size = HEX_SIZE) {
@@ -218,11 +343,11 @@
   }
   function worldToScreen(q, r) {
     const p = hexToPixel(q, r, HEX_SIZE);
-    return { x: window.innerWidth / 2 + p.x, y: window.innerHeight / 2 + p.y };
+    return { x: INTERNAL_W / 2 + p.x, y: INTERNAL_H / 2 + p.y };
   }
   function screenToAxialFloat(x, y) {
-    const wx = x - window.innerWidth / 2;
-    const wy = y - window.innerHeight / 2;
+    const wx = x - INTERNAL_W / 2;
+    const wy = y - INTERNAL_H / 2;
     const q = (SQRT3 / 3 * wx - 1 / 3 * wy) / HEX_SIZE;
     const r = (2 / 3 * wy) / HEX_SIZE;
     return { q, r };
@@ -309,7 +434,7 @@
   }
 
   function drawGrid() {
-    const w = window.innerWidth, h = window.innerHeight;
+    const w = INTERNAL_W, h = INTERNAL_H;
     const centerX = w / 2, centerY = h / 2;
     const stepX = SQRT3 * HEX_SIZE, stepY = 1.5 * HEX_SIZE;
     const margin = HEX_SIZE * 2;
@@ -335,7 +460,7 @@
   }
 
   function drawWalls() {
-    const w = window.innerWidth, h = window.innerHeight;
+    const w = INTERNAL_W, h = INTERNAL_H;
     const stepX = SQRT3 * HEX_SIZE, stepY = 1.5 * HEX_SIZE;
     const margin = HEX_SIZE * 2;
     const rMin = Math.floor((-h / 2 - margin) / stepY);
@@ -576,7 +701,7 @@
   }
 
   function drawCenterOverlay(title, sub) {
-    const w = window.innerWidth, h = window.innerHeight;
+    const w = INTERNAL_W, h = INTERNAL_H;
     ctx.fillStyle = 'rgba(0,0,0,0.45)';
     ctx.fillRect(0, 0, w, h);
 
@@ -595,7 +720,7 @@
   }
 
   function drawResultOverlay() {
-    const w = window.innerWidth, h = window.innerHeight;
+    const w = INTERNAL_W, h = INTERNAL_H;
     ctx.fillStyle = 'rgba(0,0,0,0.62)';
     ctx.fillRect(0, 0, w, h);
 
@@ -1210,9 +1335,10 @@
   }
 
   function render() {
-    ctx.clearRect(0, 0, window.innerWidth, window.innerHeight);
+    // 1) オフスクリーン(1600x900)に描画
+    ctx.clearRect(0, 0, INTERNAL_W, INTERNAL_H);
     ctx.fillStyle = '#10151c';
-    ctx.fillRect(0, 0, window.innerWidth, window.innerHeight);
+    ctx.fillRect(0, 0, INTERNAL_W, INTERNAL_H);
 
     drawGrid();
     drawWalls();
@@ -1235,6 +1361,21 @@
     } else if (phase === 'gameover') {
       drawResultOverlay();
     }
+    
+    // 2) 表示canvasへ転送（レターボックス込み）
+    screenCtx.save();
+    screenCtx.clearRect(0, 0, window.innerWidth, window.innerHeight);
+    screenCtx.fillStyle = '#10151c';
+    screenCtx.fillRect(0, 0, window.innerWidth, window.innerHeight);
+    screenCtx.drawImage(
+      offscreen,
+      0, 0, INTERNAL_W, INTERNAL_H,
+      viewport.x, viewport.y, viewport.w, viewport.h
+    );
+    screenCtx.restore();
+
+    // FSボタン位置同期（viewport変更に追随）
+    positionFsButton();
   }
 
   function loop(t) {
@@ -1248,6 +1389,7 @@
   }
 
   // 初期化
+  syncFullscreenState();
   resize();
   generateRandomWalls();
   requestAnimationFrame(loop);
