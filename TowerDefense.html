@@ -109,19 +109,55 @@
   function buildCatalog() {
     // ユニットのマスターデータ。配置時にはこの定義を複製して実体化する。
     // blockCap は「同時に足止めできる敵の上限数」を表す。
+    // 属性拡張案（今後の個性付け用）:
+    // - school: 所属学園（シナジー発動条件）
+    // - weaponType: 武器種（地形補正・対装甲補正）
+    // - attackType / armorType: 攻撃相性・被ダメ相性
+    // - critRate / critDamage: 会心発生率・会心倍率
+    // - accuracy / evasion: 命中・回避（ヒット判定）
+    // - penetration: 防御貫通（高装甲対策）
+    // - moveSpeedMul: 行動速度補正（攻撃間隔に乗算）
+    // - splashRadius: 範囲攻撃半径
+    // - statusEffect: slow/stun/burn などの状態異常付与
+    // - shield / regenPerSec: バリア量・毎秒回復
+    // - exCost / exCooldownMs: EXスキルのコストとクールダウン
+    // - tags: ['front','back','support'] のような編成タグ
     return [
-      // 盾: タンク（ブロック3）
-      { id: 'allyA', name: 'タンク', cost: 6, color: '#4cc9f0', maxHp: 220, atk: 10, atkIntervalMs: 1200, minRange: 1, maxRange: 1, role: 'attacker', mark: '盾', blockCap: 3 },
-      // 剣: ナイト（ブロック1）
-      { id: 'allyB', name: 'ナイト', cost: 10, color: '#80ed99', maxHp: 150, atk: 26, atkIntervalMs: 800,  minRange: 1, maxRange: 1, role: 'attacker', mark: '剣', blockCap: 1 },
-      // 弓: アーチャー（ブロック3）
-      { id: 'allyC', name: 'アーチャー', cost: 15, color: '#ffd166', maxHp: 90, atk: 18, atkIntervalMs: 1300, minRange: 3, maxRange: 4, role: 'attacker', mark: '弓', blockCap: 2 },
-      // 回: ヒーラー（ブロック3）
-      { id: 'allyD', name: 'ヒーラー', cost: 20, color: '#ef476f', maxHp: 95, heal: 12, atkIntervalMs: 1300, minRange: 0, maxRange: 3, role: 'healer', mark: '回', blockCap: 2 }
+      { id: 'ally01', name: 'シロコ',   cost: 10, color: '#84d8ff', maxHp: 120, atk: 22, atkIntervalMs: 780,  minRange: 2, maxRange: 3, role: 'attacker', mark: '白', blockCap: 1 },
+      { id: 'ally02', name: 'ユウカ',   cost: 10, color: '#8fe1e6', maxHp: 230, atk: 14, atkIntervalMs: 930,  minRange: 1, maxRange: 1, role: 'attacker', mark: '優', blockCap: 3 },
+      { id: 'ally03', name: 'ホシノ',   cost: 12, color: '#ffd3a3', maxHp: 260, atk: 12, atkIntervalMs: 1050, minRange: 1, maxRange: 1, role: 'attacker', mark: '星', blockCap: 3 },
+      { id: 'ally04', name: 'ネル',     cost: 14, color: '#7fd1f8', maxHp: 138, atk: 31, atkIntervalMs: 820,  minRange: 1, maxRange: 2, role: 'attacker', mark: '音', blockCap: 2 },
+      { id: 'ally05', name: 'アル',     cost: 13, color: '#ff9da8', maxHp: 130, atk: 30, atkIntervalMs: 1080, minRange: 2, maxRange: 4, role: 'attacker', mark: '亞', blockCap: 1 },
+
+      { id: 'ally06', name: 'ムツキ',   cost: 12, color: '#d88bff', maxHp: 100, atk: 24, atkIntervalMs: 940,  minRange: 2, maxRange: 3, role: 'attacker', mark: '睦', blockCap: 1 },
+      { id: 'ally07', name: 'ハルナ',   cost: 15, color: '#9ec8ff', maxHp: 118, atk: 33, atkIntervalMs: 1060, minRange: 3, maxRange: 5, role: 'attacker', mark: '春', blockCap: 1 },
+      { id: 'ally08', name: 'イズナ',   cost: 11, color: '#b9d0ff', maxHp: 108, atk: 26, atkIntervalMs: 760,  minRange: 1, maxRange: 2, role: 'attacker', mark: '泉', blockCap: 1 },
+      { id: 'ally09', name: 'アリス',   cost: 15, color: '#a6e7ff', maxHp: 124, atk: 32, atkIntervalMs: 980,  minRange: 2, maxRange: 4, role: 'attacker', mark: '愛', blockCap: 1 },
+      { id: 'ally10', name: 'ヒナ',     cost: 18, color: '#9fa8ff', maxHp: 145, atk: 38, atkIntervalMs: 1250, minRange: 3, maxRange: 5, role: 'attacker', mark: '陽', blockCap: 1 },
+
+      { id: 'ally11', name: 'ツルギ',   cost: 14, color: '#ffd0d0', maxHp: 170, atk: 27, atkIntervalMs: 880,  minRange: 1, maxRange: 1, role: 'attacker', mark: '剣', blockCap: 2 },
+      { id: 'ally12', name: 'ミカ',     cost: 19, color: '#ffd8f1', maxHp: 165, atk: 42, atkIntervalMs: 1220, minRange: 1, maxRange: 2, role: 'attacker', mark: '美', blockCap: 2 },
+      { id: 'ally13', name: 'ハナコ',   cost: 12, color: '#f6b8ce', maxHp: 105, heal: 14, atkIntervalMs: 980,  minRange: 0, maxRange: 3, role: 'healer',   mark: '花', blockCap: 1 },
+      { id: 'ally14', name: 'セリナ',   cost: 11, color: '#ffc4d8', maxHp: 102, heal: 15, atkIntervalMs: 920,  minRange: 0, maxRange: 3, role: 'healer',   mark: '芹', blockCap: 1 },
+      { id: 'ally15', name: 'コハル',   cost: 13, color: '#ffd7b5', maxHp: 112, heal: 16, atkIntervalMs: 1040, minRange: 1, maxRange: 3, role: 'healer',   mark: '心', blockCap: 1 },
+
+      { id: 'ally16', name: 'チェリノ', cost: 13, color: '#ffd98e', maxHp: 142, atk: 25, atkIntervalMs: 940,  minRange: 2, maxRange: 3, role: 'attacker', mark: '智', blockCap: 2 },
+      { id: 'ally17', name: 'ウイ',     cost: 12, color: '#d8d2ff', maxHp: 108, heal: 13, atkIntervalMs: 860,  minRange: 0, maxRange: 4, role: 'healer',   mark: '羽', blockCap: 1 },
+      { id: 'ally18', name: 'アコ',     cost: 17, color: '#8bd6ff', maxHp: 115, heal: 18, atkIntervalMs: 900,  minRange: 0, maxRange: 4, role: 'healer',   mark: '亜', blockCap: 1 },
+      { id: 'ally19', name: 'ヒマリ',   cost: 16, color: '#c9c8ff', maxHp: 110, heal: 19, atkIntervalMs: 980,  minRange: 0, maxRange: 4, role: 'healer',   mark: '陽', blockCap: 1 },
+      { id: 'ally20', name: 'ワカモ',   cost: 16, color: '#9bc1ff', maxHp: 128, atk: 35, atkIntervalMs: 970,  minRange: 2, maxRange: 4, role: 'attacker', mark: '若', blockCap: 1 }
     ];
   }
 
   const allyCatalog = buildCatalog();
+  const ROSTER_SIZE = 10;
+  const selectedRosterIds = new Set(allyCatalog.slice(0, ROSTER_SIZE).map(u => u.id));
+  let selectedRoster = allyCatalog.filter(u => selectedRosterIds.has(u.id));
+
+  function getPlayableCatalog() {
+    return selectedRoster;
+  }
+
   const alliesOnMap = [];
   let enemies = [];
   let enemyIdSeq = 1;
@@ -161,10 +197,11 @@
   let point = 0;
 
   // 進行状態・スコア
-  let phase = 'ready'; // 'ready' | 'start' | 'playing' | 'gameover'
+  let phase = 'selection'; // 'selection' | 'ready' | 'start' | 'playing' | 'gameover'
   let phaseTimerMs = 0;
   let escapedEnemies = 0;
   let totalDamageDealt = 0;
+  let hoveredSelectionIndex = -1;
 
   let dragState = { active: false, catalogIndex: -1, pointerX: 0, pointerY: 0 };
   const combatLines = [];
@@ -174,12 +211,20 @@
   const FLOAT_TEXT_DURATION_MS = 700;
 
   const ui = {
-    panelX: 16, panelY: 0, panelW: 460, panelH: 140,
-    slotW: 98, slotH: 104, slotGap: 10, padding: 12,
+    panelX: 16, panelY: 0, panelW: 1120, panelH: 140,
+    slotW: 98, slotH: 104, slotGap: 10, slotRowGap: 10, columns: 10, padding: 12,
 
     // 右上速度UI
     speedX: 0, speedY: 16, speedW: 292, speedH: 74,
-    speedBtnW: 36, speedBtnH: 28, speedGap: 4, speedPad: 10
+    speedBtnW: 36, speedBtnH: 28, speedGap: 4, speedPad: 10,
+
+    // 出撃選択UI
+    selectX: 130, selectY: 135,
+    selectCardW: 250, selectCardH: 74,
+    selectGapX: 18, selectGapY: 14,
+    selectColumns: 5,
+    selectStartBtnW: 260,
+    selectStartBtnH: 54
   };
 
   // =========================================================
@@ -751,13 +796,145 @@
     ctx.fillText(`到達した敵: ${escapedEnemies} / ${GAMEOVER_ESCAPE_COUNT}`, w / 2, y + 182);
   }
 
+  function getSelectionCardRect(i) {
+    const col = i % ui.selectColumns;
+    const row = Math.floor(i / ui.selectColumns);
+    const x = ui.selectX + col * (ui.selectCardW + ui.selectGapX);
+    const y = ui.selectY + row * (ui.selectCardH + ui.selectGapY);
+    return { x, y, w: ui.selectCardW, h: ui.selectCardH };
+  }
+
+  function getSelectionStartButtonRect() {
+    return {
+      x: Math.floor((INTERNAL_W - ui.selectStartBtnW) / 2),
+      y: INTERNAL_H - 92,
+      w: ui.selectStartBtnW,
+      h: ui.selectStartBtnH
+    };
+  }
+
+  function findSelectionCatalogIndexAt(x, y) {
+    for (let i = 0; i < allyCatalog.length; i++) {
+      const r = getSelectionCardRect(i);
+      if (isInsideRect(x, y, r.x, r.y, r.w, r.h)) return i;
+    }
+    return -1;
+  }
+
+  function drawSelectionScreen() {
+    const selectedCount = selectedRosterIds.size;
+    const canStart = selectedCount === ROSTER_SIZE;
+
+    ctx.fillStyle = 'rgba(5,8,13,0.74)';
+    ctx.fillRect(0, 0, INTERNAL_W, INTERNAL_H);
+
+    ctx.fillStyle = '#eaf4ff';
+    ctx.font = 'bold 40px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    ctx.fillText('出撃メンバー選択', INTERNAL_W / 2, 28);
+
+    ctx.fillStyle = '#b9cde5';
+    ctx.font = 'bold 20px sans-serif';
+    ctx.fillText(`20人から${ROSTER_SIZE}人を選択`, INTERNAL_W / 2, 78);
+
+    for (let i = 0; i < allyCatalog.length; i++) {
+      const u = allyCatalog[i];
+      const r = getSelectionCardRect(i);
+      const selected = selectedRosterIds.has(u.id);
+      const hovered = i === hoveredSelectionIndex;
+
+      ctx.fillStyle = selected ? 'rgba(75,130,185,0.95)' : 'rgba(33,42,58,0.92)';
+      ctx.fillRect(r.x, r.y, r.w, r.h);
+      ctx.strokeStyle = hovered
+        ? 'rgba(255,239,178,0.98)'
+        : (selected ? 'rgba(220,245,255,0.98)' : 'rgba(130,150,178,0.72)');
+      ctx.lineWidth = hovered ? 3 : 2;
+      ctx.strokeRect(r.x, r.y, r.w, r.h);
+
+      ctx.beginPath();
+      ctx.arc(r.x + 34, r.y + r.h / 2, 20, 0, Math.PI * 2);
+      ctx.fillStyle = u.color;
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(255,255,255,0.9)';
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+
+      ctx.fillStyle = '#0f1a24';
+      ctx.font = 'bold 15px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(u.mark || '・', r.x + 34, r.y + r.h / 2 + 0.5);
+
+      ctx.textAlign = 'left';
+      ctx.fillStyle = '#e8f1ff';
+      ctx.font = 'bold 18px sans-serif';
+      ctx.fillText(u.name, r.x + 64, r.y + 14);
+
+      ctx.fillStyle = '#b7d6ff';
+      ctx.font = '13px sans-serif';
+      ctx.fillText(`${u.role === 'healer' ? 'HEAL' : 'ATK'} / COST ${u.cost}`, r.x + 64, r.y + 42);
+    }
+
+    const hoveredUnit = hoveredSelectionIndex >= 0 ? allyCatalog[hoveredSelectionIndex] : null;
+    if (hoveredUnit) {
+      const infoX = 170;
+      const infoY = 658;
+      const infoW = 1260;
+      const infoH = 86;
+
+      ctx.fillStyle = 'rgba(10,16,25,0.96)';
+      ctx.fillRect(infoX, infoY, infoW, infoH);
+      ctx.strokeStyle = 'rgba(175,210,245,0.95)';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(infoX, infoY, infoW, infoH);
+
+      ctx.fillStyle = hoveredUnit.color;
+      ctx.font = 'bold 24px sans-serif';
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'top';
+      ctx.fillText(`${hoveredUnit.name} (${hoveredUnit.mark})`, infoX + 16, infoY + 10);
+
+      const powerText = hoveredUnit.role === 'healer'
+        ? `HEAL ${hoveredUnit.heal || 0}`
+        : `ATK ${hoveredUnit.atk || 0}`;
+
+      ctx.fillStyle = '#d6e7ff';
+      ctx.font = 'bold 16px sans-serif';
+      ctx.fillText(
+        `COST ${hoveredUnit.cost} | HP ${hoveredUnit.maxHp} | ${powerText} | 射程 ${hoveredUnit.minRange}-${hoveredUnit.maxRange} | blockCap ${hoveredUnit.blockCap}`,
+        infoX + 16,
+        infoY + 48
+      );
+    }
+
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = canStart ? '#8af5b2' : '#ffd166';
+    ctx.font = 'bold 22px sans-serif';
+    ctx.fillText(`選択中: ${selectedCount} / ${ROSTER_SIZE}`, INTERNAL_W / 2, INTERNAL_H - 128);
+
+    const sb = getSelectionStartButtonRect();
+    ctx.fillStyle = canStart ? 'rgba(80,180,120,0.98)' : 'rgba(85,95,110,0.95)';
+    ctx.fillRect(sb.x, sb.y, sb.w, sb.h);
+    ctx.strokeStyle = canStart ? 'rgba(230,255,240,1)' : 'rgba(170,180,192,0.92)';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(sb.x, sb.y, sb.w, sb.h);
+
+    ctx.fillStyle = canStart ? '#062014' : '#e7eef7';
+    ctx.font = 'bold 24px sans-serif';
+    ctx.fillText(canStart ? 'ゲーム開始' : '10人選ぶと開始', sb.x + sb.w / 2, sb.y + sb.h / 2 + 1);
+  }
+
   // =========================================================
   // UI
   // =========================================================
   // 下部ユニットパネルとドラッグ中プレビューを描画するセクション。
   function getSlotRect(i) {
-    const x = ui.panelX + ui.padding + i * (ui.slotW + ui.slotGap);
-    const y = ui.panelY + 26;
+    const col = i % ui.columns;
+    const row = Math.floor(i / ui.columns);
+    const x = ui.panelX + ui.padding + col * (ui.slotW + ui.slotGap);
+    const y = ui.panelY + 26 + row * (ui.slotH + ui.slotRowGap);
     return { x, y, w: ui.slotW, h: ui.slotH };
   }
 
@@ -783,8 +960,9 @@
     ctx.fillStyle = '#ffd166';
     ctx.fillText(`POINT: ${Math.floor(point)}`, ui.panelX + ui.panelW - 12, ui.panelY + 6);
 
-    for (let i = 0; i < allyCatalog.length; i++) {
-      const u = allyCatalog[i];
+    const playableCatalog = getPlayableCatalog();
+    for (let i = 0; i < playableCatalog.length; i++) {
+      const u = playableCatalog[i];
       const rect = getSlotRect(i);
       const active = isUnitActive(u);
 
@@ -836,7 +1014,8 @@
 
   function drawDragPreview() {
     if (!dragState.active) return;
-    const u = allyCatalog[dragState.catalogIndex];
+    const playableCatalog = getPlayableCatalog();
+    const u = playableCatalog[dragState.catalogIndex];
     if (!u) return;
 
     const h = screenToHex(dragState.pointerX, dragState.pointerY);
@@ -1195,7 +1374,8 @@
   // =========================================================
   // ポインタ入力から「ユニット選択→ドラッグ→配置確定」を扱うセクション。
   function findCatalogIndexAt(x, y) {
-    for (let i = 0; i < allyCatalog.length; i++) {
+    const playableCatalog = getPlayableCatalog();
+    for (let i = 0; i < playableCatalog.length; i++) {
       const rect = getSlotRect(i);
       if (isInsideRect(x, y, rect.x, rect.y, rect.w, rect.h)) return i;
     }
@@ -1203,10 +1383,33 @@
   }
 
   function onPointerDown(evt) {
-    if (phase !== 'playing') return; // 開始演出中/ゲームオーバー中は操作無効
     const p = getPointerPos(evt);
     dragState.pointerX = p.x;
     dragState.pointerY = p.y;
+
+    if (phase === 'selection') {
+      const idx = findSelectionCatalogIndexAt(p.x, p.y);
+      if (idx >= 0) {
+        const u = allyCatalog[idx];
+        if (selectedRosterIds.has(u.id)) {
+          selectedRosterIds.delete(u.id);
+        } else if (selectedRosterIds.size < ROSTER_SIZE) {
+          selectedRosterIds.add(u.id);
+        }
+        selectedRoster = allyCatalog.filter(x => selectedRosterIds.has(x.id));
+        return;
+      }
+
+      const sb = getSelectionStartButtonRect();
+      if (isInsideRect(p.x, p.y, sb.x, sb.y, sb.w, sb.h) && selectedRosterIds.size === ROSTER_SIZE) {
+        selectedRoster = allyCatalog.filter(x => selectedRosterIds.has(x.id));
+        phase = 'ready';
+        phaseTimerMs = 0;
+      }
+      return;
+    }
+
+    if (phase !== 'playing') return; // 開始演出中/ゲームオーバー中は操作無効
 
     // 速度UIを最優先
     const speedIdx = findSpeedIndexAt(p.x, p.y);
@@ -1219,7 +1422,8 @@
 
     const idx = findCatalogIndexAt(p.x, p.y);
     if (idx >= 0) {
-      const u = allyCatalog[idx];
+      const playableCatalog = getPlayableCatalog();
+      const u = playableCatalog[idx];
       if (isUnitActive(u)) {
         dragState.active = true;
         dragState.catalogIndex = idx;
@@ -1231,6 +1435,13 @@
     const p = getPointerPos(evt);
     dragState.pointerX = p.x;
     dragState.pointerY = p.y;
+
+    if (phase === 'selection') {
+      hoveredSelectionIndex = findSelectionCatalogIndexAt(p.x, p.y);
+      return;
+    }
+
+    hoveredSelectionIndex = -1;
   }
 
   function onPointerUp(evt) {
@@ -1239,7 +1450,8 @@
     dragState.pointerY = p.y;
     if (!dragState.active) return;
 
-    const u = allyCatalog[dragState.catalogIndex];
+    const playableCatalog = getPlayableCatalog();
+    const u = playableCatalog[dragState.catalogIndex];
     if (u && point >= u.cost) {
       const h = screenToHex(p.x, p.y);
       if (canPlaceAlly(h.q, h.r)) {
@@ -1286,6 +1498,8 @@
   // =========================================================
   // 毎フレームの状態更新(update)と描画(render)のメインループ。
   function update(dt) {
+
+    if (phase === 'selection') return;
 
     // ゲームオーバー中は停止
     if (phase === 'gameover') return;
@@ -1342,17 +1556,21 @@
 
     drawGrid();
     drawWalls();
-    drawEnemyOccupiedCells();
+    if (phase === 'selection') {
+      drawSelectionScreen();
+    } else {
+      drawEnemyOccupiedCells();
 
-    drawAllies();
-    drawEnemies();
-    drawCombatLines();
-    drawFloatingTexts();
+      drawAllies();
+      drawEnemies();
+      drawCombatLines();
+      drawFloatingTexts();
 
-    drawUnitPanel();
-    drawDragPreview();
-    drawTopHud();
-    drawSpeedPanel();
+      drawUnitPanel();
+      drawDragPreview();
+      drawTopHud();
+      drawSpeedPanel();
+    }
 
     if (phase === 'ready') {
       drawCenterOverlay('READY', null);
