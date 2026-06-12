@@ -1,9 +1,9 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>勉強進捗管理アプリ v3</title>
+    <title>勉強進捗管理アプリ v3.2</title>
     <style>
         :root {
             --bg-color: #f8f9fa;
@@ -166,17 +166,48 @@
             z-index: 999;
         }
         
-        .form-group { margin-bottom: 12px; }
-        .form-group label { display: block; margin-bottom: 4px; font-weight: bold; font-size: 0.9rem; }
+        .form-group { margin-bottom: 15px; }
+        .form-group label { display: block; margin-bottom: 6px; font-weight: bold; font-size: 0.9rem; }
         .form-group input, .form-group select { padding: 6px; width: 100%; box-sizing: border-box; }
         
+        /* ラジオボタンのカスタムボタンスタイル */
+        .option-button-group {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+        .btn-option {
+            flex: 1;
+            min-width: 100px;
+            padding: 10px;
+            border: 2px solid var(--border-color);
+            background: white;
+            border-radius: 6px;
+            cursor: pointer;
+            text-align: center;
+            font-weight: bold;
+            font-size: 0.85rem;
+            transition: all 0.15s;
+        }
+        .btn-option:hover {
+            background: #f8f9fa;
+            border-color: #bdc3c7;
+        }
+        .btn-option.selected[data-value="unstarted"] { background: white; border-color: #7f8c8d; color: #7f8c8d; box-shadow: inset 0 0 0 1px #7f8c8d; }
+        .btn-option.selected[data-value="reported"] { background: #fef9e7; border-color: var(--warning-color); color: #d4ac0d; box-shadow: inset 0 0 0 1px var(--warning-color); }
+        .btn-option.selected[data-value="completed"] { background: #e8f8f5; border-color: var(--success-color); color: #27ae60; box-shadow: inset 0 0 0 1px var(--success-color); }
+        
+        .btn-option.selected[data-level="◎"] { background: #eaf2f8; border-color: #2980b9; color: #1a5276; box-shadow: inset 0 0 0 1px #2980b9; }
+        .btn-option.selected[data-level="○"] { background: #fdf2e9; border-color: #e67e22; color: #a04000; box-shadow: inset 0 0 0 1px #e67e22; }
+        .btn-option.selected[data-level="△"] { background: #f9ebea; border-color: var(--danger-color); color: #943126; box-shadow: inset 0 0 0 1px var(--danger-color); }
+
         table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 0.9rem; }
         table, th, td { border: 1px solid var(--border-color); padding: 8px; text-align: left; }
         th { background-color: #f1f3f5; }
         .row-merged { background-color: #fafafa; }
         
         /* 複数選択テーブル用のスタイル */
-        .selectable-row { cursor: pointer; unselectable: on; user-select: none; }
+        .selectable-row { cursor: pointer; user-select: none; }
         .selectable-row:hover { background-color: #f1f3f5; }
         .selectable-row.selected { background-color: #dcedc8 !important; font-weight: bold; }
         
@@ -333,34 +364,41 @@
 
 <div id="modal-report-input" class="modal">
     <h3>進捗の報告</h3>
-    <p id="report-target-desc"></p>
+    <p id="report-target-desc" style="font-size:1.1rem; font-weight:bold; color:var(--text-color); margin-bottom:20px;"></p>
+    
     <input type="hidden" id="report-target-week">
     <input type="hidden" id="report-target-day">
     <input type="hidden" id="report-target-id">
-    
-    <div class="form-group">
+    <input type="hidden" id="report-target-type">
+
+    <div class="form-group" id="area-status-selection">
         <label>ステータス</label>
-        <select id="report-status-select" onchange="toggleReportLevelArea(this.value)">
-            <option value="unstarted">未着手</option>
-            <option value="reported">記入済み</option>
-            <option value="completed">完了</option>
-        </select>
+        <div class="option-button-group">
+            <button type="button" class="btn-option" data-value="unstarted" onclick="selectStatusOption('unstarted')">未着手</button>
+            <button type="button" class="btn-option" id="btn-status-reported" data-value="reported" onclick="selectStatusOption('reported')">記入済み</button>
+            <button type="button" class="btn-option" data-value="completed" onclick="selectStatusOption('completed')">完了</button>
+        </div>
     </div>
-    <div id="report-level-area" style="display:none;">
+
+    <div id="report-book-fields-area" style="display:none; border-top: 1px dashed var(--border-color); padding-top:15px; margin-top:15px;">
         <div class="form-group">
             <label>クリアレベル</label>
-            <select id="report-level-select">
-                <option value="◎">◎ 再実施不要</option>
-                <option value="○">○ 時間があったら</option>
-                <option value="△">△ やりなおすべき</option>
-            </select>
+            <div class="option-button-group">
+                <button type="button" class="btn-option" data-level="◎" onclick="selectLevelOption('◎')">◎ 完璧！</button>
+                <button type="button" class="btn-option" data-level="○" onclick="selectLevelOption('○')">○ 時間があったらやりなおす</button>
+                <button type="button" class="btn-option" data-level="△" onclick="selectLevelOption('△')">△ もう一度</button>
+            </div>
         </div>
         <div class="form-group">
             <label>完了日</label>
             <input type="date" id="report-date-input">
         </div>
     </div>
-    <button onclick="submitProgressReport()">報告を保存</button> <button onclick="closeAllModals()">キャンセル</button>
+    
+    <div style="margin-top:25px; text-align:right;">
+        <button onclick="submitProgressReport()" style="background:var(--primary-color); color:white; padding:10px 20px; border:none; border-radius:4px; font-weight:bold; cursor:pointer;">報告を保存</button> 
+        <button onclick="closeAllModals()" style="background:#bdc3c7; color:white; padding:10px 15px; border:none; border-radius:4px; cursor:pointer; margin-left:5px;">キャンセル</button>
+    </div>
 </div>
 
 <div id="modal-group-move" class="modal">
@@ -394,6 +432,9 @@ const SUBJECT_SORT_ORDER = ["国語", "数学", "理科", "社会(地)", "社会
 const SUBJECT_COLORS = { "国語":"#c0392b", "数学":"#2980b9", "理科":"#27ae60", "社会(地)":"#d35400", "社会(歴)":"#e67e22", "社会(公)":"#f39c12", "英語":"#8e44ad" };
 let currentSelectedBookId = null;
 let wizardSelectedNumbers = []; // ウィザードで選択された項番を一時保持
+
+let selectedStatusValue = "unstarted";
+let selectedLevelValue = "◎";
 
 // ロード・セーブ
 function loadDB() {
@@ -553,7 +594,7 @@ function renderBookDetail(bookId) {
         let displaySection = currentItem.sectionName || '-';
         if(i > 0 && currentItem.sectionName && currentItem.sectionName === items[i-1].sectionName) {
             isMerged = true;
-            displaySection = ""; // 「↑上と結合」ではなく空白に変更
+            displaySection = ""; 
         }
         
         html += `
@@ -591,7 +632,7 @@ function applyBulkBookMilestone() {
     saveDB(); renderBookDetail(currentSelectedBookId);
 }
 
-// --- 4. カンバンコア（ソートロジック組み込み） ---
+// --- 4. カンバンコア（予定・進捗 共通描画） ---
 function initWeeklyPlan(weekStr) {
     if(!db.weeklyPlans[weekStr]) {
         db.weeklyPlans[weekStr] = { isClosed:false, days: { Monday:[], Tuesday:[], Wednesday:[], Thursday:[], Friday:[], Saturday:[], Sunday:[] } };
@@ -607,6 +648,13 @@ function loadWeeklyPlanKanban() {
     const weekStr = document.getElementById('plan-week-select').value;
     if(!weekStr) return; initWeeklyPlan(weekStr);
     renderKanbanFlow('plan-kanban-board', weekStr, true);
+}
+
+// 【復元】進捗報告用のカンバン読み込みエントリーポイント
+function loadReportKanban() {
+    const weekStr = document.getElementById('report-week-select').value;
+    if(!weekStr) return; initWeeklyPlan(weekStr);
+    renderKanbanFlow('report-kanban-board', weekStr, false);
 }
 
 function renderKanbanFlow(boardId, weekStr, editable) {
@@ -742,7 +790,7 @@ function executeGroupMove() {
 function openAddPlanWizard() {
     const select = document.getElementById('wizard-book-select');
     select.innerHTML = db.books.map(b => `<option value="${b.id}">[${b.subject}] ${b.title}</option>`).join('');
-    wizardSelectedNumbers = []; // リセット
+    wizardSelectedNumbers = [];
     renderWizardBookDetails();
     showModal('modal-add-plan');
 }
@@ -794,7 +842,7 @@ function addSelectedItemsToWeek() {
     const weekStr = document.getElementById('plan-week-select').value;
     const bookId = document.getElementById('wizard-book-select').value;
     
-    if(!bookId || wizardSelectedNumbers.length === 0) return alert("項目が選択されていません。表の中をクリックしてください。");
+    if(!bookId || wizardSelectedNumbers.length === 0) return alert("項目が選択されていません。");
     
     // 項番を数値ソート
     wizardSelectedNumbers.sort((a,b) => a - b);
@@ -821,49 +869,79 @@ function addSelectedItemsToWeek() {
     saveDB(); closeAllModals(); loadWeeklyPlanKanban();
 }
 
-// --- 5. 進捗報告機能 ---
-function loadReportKanban() {
-    const weekStr = document.getElementById('report-week-select').value;
-    if(!weekStr) return; initWeeklyPlan(weekStr);
-    renderKanbanFlow('report-kanban-board', weekStr, false);
-}
-
+// --- 5. 進捗報告機能（ボタンUI制御） ---
 function openProgressReportModal(weekStr, day, task) {
     document.getElementById('report-target-week').value = weekStr;
     document.getElementById('report-target-day').value = day;
     document.getElementById('report-target-id').value = task.id;
+    document.getElementById('report-target-type').value = task.type;
     
+    const todayStr = new Date().toISOString().split('T')[0];
+    document.getElementById('report-date-input').value = todayStr;
+
     if(task.type === 'daily') {
         document.getElementById('report-target-desc').innerText = `日課: ${task.name}`;
-        document.getElementById('report-status-select').innerHTML = `<option value="unstarted">未着手</option><option value="completed">完了</option>`;
+        document.getElementById('btn-status-reported').style.display = 'none'; 
+        document.getElementById('report-book-fields-area').style.display = 'none'; 
     } else {
         const book = db.books.find(b => b.id === task.bookId);
-        document.getElementById('report-target-desc').innerText = `教材: ${book?book.title:''} (項番: ${task.itemNumber})`;
-        document.getElementById('report-status-select').innerHTML = `<option value="unstarted">未着手</option><option value="reported">記入済み</option><option value="completed">完了</option>`;
+        document.getElementById('report-target-desc').innerText = `教材: ${book ? book.title : ''} (項番: ${task.itemNumber})`;
+        document.getElementById('btn-status-reported').style.display = 'inline-block'; 
     }
-    document.getElementById('report-status-select').value = task.status;
-    toggleReportLevelArea(task.status);
+
+    selectStatusOption(task.status);
+    selectLevelOption("◎"); 
+
     showModal('modal-report-input');
 }
 
-function toggleReportLevelArea(status) {
-    document.getElementById('report-level-area').style.display = status === 'completed' ? 'block' : 'none';
+function selectStatusOption(statusValue) {
+    selectedStatusValue = statusValue;
+    
+    const buttons = document.querySelectorAll('#area-status-selection .btn-option');
+    buttons.forEach(btn => btn.classList.remove('selected'));
+    
+    const activeBtn = document.querySelector(`#area-status-selection .btn-option[data-value="${statusValue}"]`);
+    if(activeBtn) activeBtn.classList.add('selected');
+    
+    const taskType = document.getElementById('report-target-type').value;
+    if(taskType === 'book' && statusValue === 'completed') {
+        document.getElementById('report-book-fields-area').style.display = 'block';
+    } else {
+        document.getElementById('report-book-fields-area').style.display = 'none';
+    }
+}
+
+function selectLevelOption(levelValue) {
+    selectedLevelValue = levelValue;
+    
+    const buttons = document.querySelectorAll('#report-book-fields-area .btn-option');
+    buttons.forEach(btn => btn.classList.remove('selected'));
+    
+    const activeBtn = document.querySelector(`#report-book-fields-area .btn-option[data-level="${levelValue}"]`);
+    if(activeBtn) activeBtn.classList.add('selected');
 }
 
 function submitProgressReport() {
     const weekStr = document.getElementById('report-target-week').value;
     const day = document.getElementById('report-target-day').value;
     const id = document.getElementById('report-target-id').value;
-    const status = document.getElementById('report-status-select').value;
+    const taskType = document.getElementById('report-target-type').value;
     
     const plan = db.weeklyPlans[weekStr];
     const task = plan.days[day].find(t => t.id === id);
+    
     if(task) {
-        task.status = status;
-        if(task.type === 'book' && status === 'completed') {
-            const level = document.getElementById('report-level-select').value; // '◎', '○', '△' のみ取得される
-            const date = document.getElementById('report-date-input').value || new Date().toISOString().split('T')[0];
-            
+        task.status = selectedStatusValue;
+        const todayStr = new Date().toISOString().split('T')[0];
+
+        if (taskType === 'daily') {
+            if (selectedStatusValue === 'completed') {
+                task.clearLevel = '◎';
+                task.completedDate = todayStr;
+            }
+        } else if (taskType === 'book' && selectedStatusValue === 'completed') {
+            const date = document.getElementById('report-date-input').value || todayStr;
             const book = db.books.find(b => b.id === task.bookId);
             const item = book.items.find(i => i.itemNumber === task.itemNumber);
             if(item) {
@@ -871,10 +949,10 @@ function submitProgressReport() {
                 const existingIdx = item.history.findIndex(h => h.date === date);
                 if (existingIdx !== -1) {
                     // 同じ日付があれば上書き
-                    item.history[existingIdx].clearLevel = level;
+                    item.history[existingIdx].clearLevel = selectedLevelValue;
                 } else {
                     // なければ新規追加
-                    item.history.push({ date, clearLevel: level });
+                    item.history.push({ date, clearLevel: selectedLevelValue });
                 }
             }
         }
@@ -913,7 +991,10 @@ function closeCurrentWeek() {
     switchPage('plan');
 }
 
-window.onload = function() { loadDB(); };
+window.onload = function() { 
+    loadDB(); 
+    renderTopMilestonesList();
+};
 </script>
 </body>
 </html>
