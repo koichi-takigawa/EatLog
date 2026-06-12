@@ -1,0 +1,919 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>勉強進捗管理アプリ v3</title>
+    <style>
+        :root {
+            --bg-color: #f8f9fa;
+            --card-bg: #ffffff;
+            --text-color: #2c3e50;
+            --primary-color: #3498db;
+            --success-color: #2ecc71;
+            --warning-color: #f1c40f;
+            --danger-color: #e74c3c;
+            --border-color: #dee2e6;
+        }
+        body {
+            font-family: 'Helvetica Neue', Arial, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            margin: 0;
+            padding: 20px;
+        }
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 2px solid var(--border-color);
+            padding-bottom: 10px;
+            margin-bottom: 20px;
+        }
+        nav button {
+            margin-left: 5px;
+            padding: 8px 15px;
+            cursor: pointer;
+            background-color: var(--primary-color);
+            color: white;
+            border: none;
+            border-radius: 4px;
+            font-weight: bold;
+        }
+        .page { display: none; }
+        .page.active { display: block; }
+        
+        /* 本棚レイアウト */
+        .bookshelf {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 20px;
+            margin-top: 20px;
+        }
+        .book-card {
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 15px;
+            cursor: pointer;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+            transition: transform 0.2s;
+            position: relative;
+        }
+        .book-card:hover { transform: translateY(-5px); }
+        .subject-badge {
+            display: inline-block;
+            padding: 2px 6px;
+            font-size: 0.75rem;
+            border-radius: 4px;
+            color: white;
+            background-color: #7f8c8d;
+            margin-bottom: 8px;
+        }
+
+        /* カンバン・レイアウト */
+        .kanban-board {
+            display: grid;
+            grid-template-columns: repeat(7, minmax(130px, 1fr));
+            gap: 10px;
+            margin-top: 20px;
+        }
+        .kanban-lane {
+            background: #eef2f5;
+            border-radius: 6px;
+            padding: 10px;
+            min-height: 550px;
+        }
+        .kanban-lane h3 { margin-top: 0; font-size: 0.95rem; text-align: center; border-bottom: 1px solid var(--border-color); padding-bottom: 5px; }
+        
+        /* グルーピングコンテナ */
+        .kanban-group {
+            background: #e0e6ed;
+            border: 1px solid #b0c4de;
+            border-radius: 4px;
+            padding: 5px;
+            margin-bottom: 10px;
+        }
+        .kanban-group-header {
+            font-size: 0.75rem;
+            font-weight: bold;
+            margin-bottom: 5px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .kanban-group-header button {
+            font-size: 0.7rem; padding: 1px 4px; cursor: pointer;
+        }
+
+        .task-card {
+            background: var(--card-bg);
+            border-left: 5px solid var(--primary-color);
+            padding: 8px;
+            margin-bottom: 5px;
+            border-radius: 4px;
+            cursor: grab;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+            font-size: 0.8rem;
+        }
+        .task-card.daily { border-left-color: #9b59b6; cursor: default; }
+        .task-card.reported { border-left-color: var(--warning-color); }
+        .task-card.completed { border-left-color: var(--success-color); opacity: 0.6; }
+        .report-board .task-card { cursor: pointer; } 
+
+        /* フローティング＋ボタン */
+        .fab {
+            position: fixed;
+            bottom: 30px;
+            right: 30px;
+            width: 60px;
+            height: 60px;
+            background-color: var(--primary-color);
+            color: white;
+            border-radius: 50%;
+            text-align: center;
+            font-size: 30px;
+            line-height: 60px;
+            cursor: pointer;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+            border: none;
+            z-index: 99;
+        }
+        
+        /* モーダル */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: white;
+            padding: 20px;
+            border: 1px solid var(--border-color);
+            box-shadow: 0 5px 25px rgba(0,0,0,0.2);
+            z-index: 1000;
+            border-radius: 8px;
+            width: 90%;
+            max-width: 700px;
+            max-height: 85vh;
+            overflow-y: auto;
+        }
+        .modal-backdrop {
+            display: none;
+            position: fixed;
+            top:0; left:0; width:100%; height:100%;
+            background: rgba(0,0,0,0.5);
+            z-index: 999;
+        }
+        
+        .form-group { margin-bottom: 12px; }
+        .form-group label { display: block; margin-bottom: 4px; font-weight: bold; font-size: 0.9rem; }
+        .form-group input, .form-group select { padding: 6px; width: 100%; box-sizing: border-box; }
+        
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 0.9rem; }
+        table, th, td { border: 1px solid var(--border-color); padding: 8px; text-align: left; }
+        th { background-color: #f1f3f5; }
+        .row-merged { background-color: #fafafa; }
+        
+        /* 複数選択テーブル用のスタイル */
+        .selectable-row { cursor: pointer; unselectable: on; user-select: none; }
+        .selectable-row:hover { background-color: #f1f3f5; }
+        .selectable-row.selected { background-color: #dcedc8 !important; font-weight: bold; }
+        
+        /* マイルストーン表示用タイル */
+        .ms-tile {
+            background: white;
+            border: 1px solid var(--border-color);
+            padding: 12px;
+            border-radius: 6px;
+            margin-bottom: 10px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.02);
+        }
+    </style>
+</head>
+<body>
+
+<header>
+    <h1>進捗管理システム</h1>
+    <nav>
+        <button onclick="switchPage('top')">トップ・マイルストーン</button>
+        <button onclick="switchPage('daily')">デイリー</button>
+        <button onclick="switchPage('books')">本棚（編集）</button>
+        <button onclick="switchPage('plan')">予定設定</button>
+        <button onclick="switchPage('report')">進捗報告</button>
+    </nav>
+</header>
+
+<div id="modal-backdrop" class="modal-backdrop" onclick="closeAllModals()"></div>
+
+<div id="page-top" class="page active">
+    <h2>トップ / 全体マイルストーン管理</h2>
+    <div style="background: #eef2f5; padding: 15px; border-radius: 6px; margin-bottom: 20px;">
+        <h3>直近の目標スケジュール</h3>
+        <div id="top-milestone-summary-v3"></div>
+    </div>
+    
+    <div style="background:white; padding:15px; border-radius:6px; border:1px solid var(--border-color);">
+        <h3>登録済みマイルストーンマスター 一覧</h3>
+        <ul id="top-ms-list"></ul>
+    </div>
+    
+    <hr style="margin: 30px 0; border:0; border-top:1px solid var(--border-color);">
+    <h3>データの保存と読み込み</h3>
+    <button onclick="exportData()">データをJSONで保存</button>
+    <input type="file" id="import-file" onchange="importData(event)" style="display:none">
+    <button onclick="document.getElementById('import-file').click()">データをJSONから読み込み</button>
+
+    <button class="fab" onclick="showModal('modal-add-milestone')">＋</button>
+</div>
+
+<div id="page-daily" class="page">
+    <h2>デイリーミッションの登録</h2>
+    <div class="form-group">
+        <label>ミッション名</label>
+        <input type="text" id="daily-name" placeholder="例: 英単語 10個">
+        <button onclick="addDailyMission()" style="margin-top:5px; padding:8px;">登録</button>
+    </div>
+    <ul id="daily-list"></ul>
+</div>
+
+<div id="page-books" class="page">
+    <h2>本棚（教材一覧）</h2>
+    <div class="bookshelf" id="bookshelf-container"></div>
+    <button class="fab" onclick="openAddBookModal()">＋</button>
+</div>
+
+<div id="page-book-detail" class="page">
+    <button onclick="switchPage('books')">← 本棚に戻る</button>
+    <h2 id="detail-book-title">本の詳細</h2>
+    
+    <div style="display:flex; gap:15px; margin-bottom:20px;">
+        <div style="flex:1; background:#fff; padding:10px; border-radius:6px; border:1px solid var(--border-color);">
+            <h4>単元名の一括設定</h4>
+            範囲: <input type="number" id="bulk-unit-start" style="width:60px"> 〜 <input type="number" id="bulk-unit-end" style="width:60px"> <br><br>
+            単元名: <input type="text" id="bulk-unit-name" placeholder="例: 微分・積分">
+            <button onclick="applyBulkUnit()">設定</button>
+        </div>
+        <div style="flex:1; background:#fff; padding:10px; border-radius:6px; border:1px solid var(--border-color);">
+            <h4>マイルストーンの一括設定</h4>
+            範囲: <input type="number" id="bulk-ms-start" style="width:60px"> 〜 <input type="number" id="bulk-ms-end" style="width:60px"> <br><br>
+            目標: <select id="bulk-ms-select"></select>
+            <button onclick="applyBulkBookMilestone()">設定</button>
+        </div>
+    </div>
+
+    <h3>項目一覧</h3>
+    <table id="book-items-table"></table>
+</div>
+
+<div id="page-plan" class="page">
+    <h2>予定の設定（カンバン）</h2>
+    <div class="form-group">
+        <label>対象の週（月曜日の日付）</label>
+        <input type="date" id="plan-week-select" onchange="loadWeeklyPlanKanban()">
+    </div>
+    <div class="kanban-board" id="plan-kanban-board"></div>
+    <button class="fab" onclick="openAddPlanWizard()">＋</button>
+</div>
+
+<div id="page-report" class="page">
+    <div style="display: flex; justify-content: space-between; align-items: center;">
+        <h2>進捗報告（閲覧・タップ報告）</h2>
+        <button onclick="closeCurrentWeek()" style="background:var(--danger-color); color:white; padding:10px; border:none; border-radius:4px; cursor:pointer; font-weight:bold;">この週を終了する</button>
+    </div>
+    <div class="form-group">
+        <label>対象の週</label>
+        <input type="date" id="report-week-select" onchange="loadReportKanban()">
+    </div>
+    <div class="kanban-board report-board" id="report-kanban-board"></div>
+</div>
+
+<div id="modal-add-milestone" class="modal">
+    <h3>マイルストーン新規登録</h3>
+    <div class="form-group">
+        <label>マイルストーン名</label>
+        <input type="text" id="ms-title" placeholder="例: 第1回定期テスト">
+    </div>
+    <div class="form-group">
+        <label>日付</label>
+        <input type="date" id="ms-date">
+    </div>
+    <button onclick="addMilestone()">マスター登録</button> <button onclick="closeAllModals()">キャンセル</button>
+</div>
+
+<div id="modal-add-book" class="modal">
+    <h3>新しい本・教材の追加</h3>
+    <div class="form-group"><label>科目</label>
+        <select id="new-book-subject">
+            <option>国語</option><option>数学</option><option>理科</option>
+            <option>社会(地)</option><option>社会(歴)</option><option>社会(公)</option><option>英語</option>
+        </select>
+    </div>
+    <div class="form-group"><label>タイトル</label><input type="text" id="new-book-title"></div>
+    <div class="form-group"><label>開始項番</label><input type="number" id="new-book-start" value="1"></div>
+    <div class="form-group"><label>終了項番</label><input type="number" id="new-book-end" value="100"></div>
+    <button onclick="addBook()">本棚に追加</button> <button onclick="closeAllModals()">キャンセル</button>
+</div>
+
+<div id="modal-add-plan" class="modal" style="max-width:850px;">
+    <h3>週に項目を追加する</h3>
+    <div class="form-group">
+        <label>本を選択</label>
+        <select id="wizard-book-select" onchange="renderWizardBookDetails()"></select>
+    </div>
+    <p style="font-size:0.8rem; color:#7f8c8d; margin-bottom:5px;">※行を直接クリックして、追加したい項番を複数選択してください（緑色に変わります）。</p>
+    <div style="max-height: 280px; overflow-y: auto; border: 1px solid var(--border-color); margin-bottom:15px;" id="wizard-book-table-container"></div>
+    
+    <div style="background:#eef2f5; padding:12px; border-radius:6px;">
+        <h4>選択した項目を今週へ配分（月〜金へ自動傾斜配分）</h4>
+        <button onclick="addSelectedItemsToWeek()" style="background:var(--success-color); color:white; padding:8px 20px; border:none; border-radius:4px; font-weight:bold; cursor:pointer;">選択した項目を追加</button>
+    </div>
+    <br><button onclick="closeAllModals()">閉じる</button>
+</div>
+
+<div id="modal-report-input" class="modal">
+    <h3>進捗の報告</h3>
+    <p id="report-target-desc"></p>
+    <input type="hidden" id="report-target-week">
+    <input type="hidden" id="report-target-day">
+    <input type="hidden" id="report-target-id">
+    
+    <div class="form-group">
+        <label>ステータス</label>
+        <select id="report-status-select" onchange="toggleReportLevelArea(this.value)">
+            <option value="unstarted">未着手</option>
+            <option value="reported">記入済み</option>
+            <option value="completed">完了</option>
+        </select>
+    </div>
+    <div id="report-level-area" style="display:none;">
+        <div class="form-group">
+            <label>クリアレベル</label>
+            <select id="report-level-select">
+                <option value="◎">◎ 再実施不要</option>
+                <option value="○">○ 時間があったら</option>
+                <option value="△">△ やりなおすべき</option>
+            </select>
+        </div>
+        <div class="form-group">
+            <label>完了日</label>
+            <input type="date" id="report-date-input">
+        </div>
+    </div>
+    <button onclick="submitProgressReport()">報告を保存</button> <button onclick="closeAllModals()">キャンセル</button>
+</div>
+
+<div id="modal-group-move" class="modal">
+    <h3>グループ一括曜日移動</h3>
+    <p id="group-move-desc"></p>
+    <input type="hidden" id="move-src-day">
+    <input type="hidden" id="move-group-key">
+    <div class="form-group">
+        <label>移動先の曜日</label>
+        <select id="move-target-day">
+            <option value="Monday">月曜日</option><option value="Tuesday">火曜日</option><option value="Wednesday">水曜日</option>
+            <option value="Thursday">木曜日</option><option value="Friday">金曜日</option><option value="Saturday">土曜日</option>
+            <option value="Sunday">日曜日</option>
+        </select>
+    </div>
+    <button onclick="executeGroupMove()">移動する</button> <button onclick="closeAllModals()">キャンセル</button>
+</div>
+
+<script>
+// --- データ構造マスター ---
+let db = {
+    books: [],
+    dailyMissions: [],
+    milestones: [],
+    weeklyPlans: {} 
+};
+
+const DAYS_ENG = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+const DAYS_JPN = ["月曜日", "火曜日", "水曜日", "木曜日", "金曜日", "土曜日", "日曜日"];
+const SUBJECT_SORT_ORDER = ["国語", "数学", "理科", "社会(地)", "社会(歴)", "社会(公)", "英語"];
+const SUBJECT_COLORS = { "国語":"#c0392b", "数学":"#2980b9", "理科":"#27ae60", "社会(地)":"#d35400", "社会(歴)":"#e67e22", "社会(公)":"#f39c12", "英語":"#8e44ad" };
+let currentSelectedBookId = null;
+let wizardSelectedNumbers = []; // ウィザードで選択された項番を一時保持
+
+// ロード・セーブ
+function loadDB() {
+    const data = localStorage.getItem('study_progress_v3');
+    if (data) db = JSON.parse(data);
+    updateTopMilestoneSummary();
+}
+function saveDB() {
+    localStorage.setItem('study_progress_v3', JSON.stringify(db));
+    updateTopMilestoneSummary();
+}
+
+function switchPage(pageId, bookId = null) {
+    document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+    document.getElementById(`page-${pageId}`).classList.add('active');
+    
+    if(pageId === 'top') { updateTopMilestoneSummary(); renderTopMilestonesList(); }
+    if(pageId === 'daily') renderDailyMissions();
+    if(pageId === 'books') renderBookshelf();
+    if(pageId === 'book-detail' && bookId) { currentSelectedBookId = bookId; renderBookDetail(bookId); }
+    if(pageId === 'plan') { initDateInput('plan-week-select'); loadWeeklyPlanKanban(); }
+    if(pageId === 'report') { initDateInput('report-week-select'); loadReportKanban(); }
+}
+
+function initDateInput(id) {
+    const input = document.getElementById(id);
+    if(!input.value) input.value = getMonday(new Date()).toISOString().split('T')[0];
+}
+function getMonday(d) {
+    d = new Date(d); const day = d.getDay(), diff = d.getDate() - day + (day === 0 ? -6 : 1);
+    return new Date(d.setDate(diff));
+}
+
+function closeAllModals() {
+    document.querySelectorAll('.modal').forEach(m => m.style.display = 'none');
+    document.getElementById('modal-backdrop').style.display = 'none';
+}
+function showModal(id) {
+    document.getElementById('modal-backdrop').style.display = 'block';
+    document.getElementById(id).style.display = 'block';
+}
+
+// --- 1. トップ＆マイルストーン ---
+function addMilestone() {
+    const title = document.getElementById('ms-title').value;
+    const date = document.getElementById('ms-date').value;
+    if(!title || !date) return alert("入力が不完全です");
+    db.milestones.push({ id: 'ms_'+Date.now(), title, date });
+    saveDB(); renderTopMilestonesList();
+    closeAllModals();
+    document.getElementById('ms-title').value = '';
+    document.getElementById('ms-date').value = '';
+}
+function renderTopMilestonesList() {
+    const ul = document.getElementById('top-ms-list');
+    db.milestones.sort((a,b)=>new Date(a.date)-new Date(b.date));
+    ul.innerHTML = db.milestones.map(m => `<li><strong>${m.date}</strong> : ${m.title}</li>`).join('');
+}
+function updateTopMilestoneSummary() {
+    const container = document.getElementById('top-milestone-summary-v3');
+    if(!db.milestones || db.milestones.length === 0) { container.innerHTML = "マイルストーンが登録されていません。右下の「＋」から追加してください。"; return; }
+    
+    // 今日以降のマイルストーンを抽出
+    let today = new Date(); today.setHours(0,0,0,0);
+    let future = db.milestones.filter(m => new Date(m.date) >= today);
+    future.sort((a,b)=>new Date(a.date)-new Date(b.date));
+    
+    if(future.length === 0) { container.innerHTML = "直近の予定マイルストーンはありません。"; return; }
+    
+    let html = "";
+    // 直近2つを表示
+    let displayCount = Math.min(2, future.length);
+    for(let i=0; i<displayCount; i++) {
+        let m = future[i];
+        let diffTime = new Date(m.date) - today;
+        let diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+        html += `
+            <div class="ms-tile">
+                <span style="font-size:0.85rem; color:#7f8c8d;">直近の目標 ${i+1}</span>
+                <h3 style="margin:5px 0; color:var(--text-color);">${m.title} <span style="font-size:1.3rem; color:var(--danger-color); float:right;">あと ${diffDays} 日</span></h3>
+                <small>目標設定日: ${m.date}</small>
+            </div>
+        `;
+    }
+    container.innerHTML = html;
+}
+function exportData() {
+    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(db, null, 2));
+    const a = document.createElement('a'); a.setAttribute("href", dataStr);
+    a.setAttribute("download", `study_v3_backup.json`); a.click();
+}
+function importData(event) {
+    const reader = new FileReader();
+    reader.onload = function() {
+        try { db = JSON.parse(reader.result); saveDB(); alert("読込完了"); switchPage('top'); } catch(e){ alert("失敗"); }
+    };
+    reader.readAsText(event.target.files[0]);
+}
+
+// --- 2. デイリー ---
+function addDailyMission() {
+    const name = document.getElementById('daily-name').value;
+    if(!name) return;
+    db.dailyMissions.push({ id: 'dm_'+Date.now(), name });
+    document.getElementById('daily-name').value = '';
+    saveDB(); renderDailyMissions();
+}
+function renderDailyMissions() {
+    document.getElementById('daily-list').innerHTML = db.dailyMissions.map(m => `<li>${m.name}</li>`).join('');
+}
+
+// --- 3. 本棚 ＆ 詳細 ---
+function openAddBookModal() { showModal('modal-add-book'); }
+function addBook() {
+    const subject = document.getElementById('new-book-subject').value;
+    const title = document.getElementById('new-book-title').value;
+    const start = parseInt(document.getElementById('new-book-start').value);
+    const end = parseInt(document.getElementById('new-book-end').value);
+    if(!title || isNaN(start) || isNaN(end) || start > end) return alert("入力値が不正です");
+    
+    let items = [];
+    for(let i = start; i <= end; i++) {
+        items.push({ itemNumber: i, sectionName: "", milestoneId: "", history: [] });
+    }
+    db.books.push({ id: 'book_'+Date.now(), subject, title, start, end, items });
+    saveDB(); closeAllModals(); renderBookshelf();
+}
+function renderBookshelf() {
+    const container = document.getElementById('bookshelf-container');
+    container.innerHTML = db.books.map(b => `
+        <div class="book-card" onclick="switchPage('book-detail', '${b.id}')">
+            <span class="subject-badge" style="background-color:${SUBJECT_COLORS[b.subject]}">${b.subject}</span>
+            <h3 style="margin:5px 0;">${b.title}</h3>
+            <p style="font-size:0.8rem; color:#7f8c8d; margin:0;">項番: ${b.start} 〜 ${b.end}</p>
+        </div>
+    `).join('');
+}
+
+function renderBookDetail(bookId) {
+    const book = db.books.find(b => b.id === bookId);
+    document.getElementById('detail-book-title').innerText = `${book.title} (${book.subject}) 詳細`;
+    
+    const msSelect = document.getElementById('bulk-ms-select');
+    msSelect.innerHTML = `<option value="">--選択なし--</option>` + db.milestones.map(m=>`<option value="${m.id}">${m.title}(${m.date})</option>`).join('');
+
+    const table = document.getElementById('book-items-table');
+    let html = `<tr><th>項番</th><th>単元名</th><th>マイルストーン</th><th>実施履歴</th></tr>`;
+    
+    let items = book.items;
+    for(let i=0; i<items.length; i++) {
+        let currentItem = items[i];
+        let msObj = db.milestones.find(m => m.id === currentItem.milestoneId);
+        let msText = msObj ? `${msObj.title}(${msObj.date})` : '-';
+        let historyText = currentItem.history.map(h => `[${h.clearLevel}:${h.date || ''}]`).join(' ');
+        
+        let isMerged = false;
+        let displaySection = currentItem.sectionName || '-';
+        if(i > 0 && currentItem.sectionName && currentItem.sectionName === items[i-1].sectionName) {
+            isMerged = true;
+            displaySection = ""; // 「↑上と結合」ではなく空白に変更
+        }
+        
+        html += `
+            <tr class="${isMerged ? 'row-merged':''}">
+                <td>${currentItem.itemNumber}</td>
+                <td>${displaySection}</td>
+                <td>${msText}</td>
+                <td style="font-size:0.75rem;">${historyText || '未実施'}</td>
+            </tr>
+        `;
+    }
+    table.innerHTML = html;
+}
+
+function applyBulkUnit() {
+    const start = parseInt(document.getElementById('bulk-unit-start').value);
+    const end = parseInt(document.getElementById('bulk-unit-end').value);
+    const name = document.getElementById('bulk-unit-name').value;
+    const book = db.books.find(b => b.id === currentSelectedBookId);
+    if(!book || isNaN(start) || isNaN(end)) return alert("範囲を指定してください");
+    book.items.forEach(i => {
+        if(i.itemNumber >= start && i.itemNumber <= end) i.sectionName = name;
+    });
+    saveDB(); renderBookDetail(currentSelectedBookId);
+}
+function applyBulkBookMilestone() {
+    const start = parseInt(document.getElementById('bulk-ms-start').value);
+    const end = parseInt(document.getElementById('bulk-ms-end').value);
+    const msId = document.getElementById('bulk-ms-select').value;
+    const book = db.books.find(b => b.id === currentSelectedBookId);
+    if(!book || isNaN(start) || isNaN(end)) return alert("範囲を指定してください");
+    book.items.forEach(i => {
+        if(i.itemNumber >= start && i.itemNumber <= end) i.milestoneId = msId;
+    });
+    saveDB(); renderBookDetail(currentSelectedBookId);
+}
+
+// --- 4. カンバンコア（ソートロジック組み込み） ---
+function initWeeklyPlan(weekStr) {
+    if(!db.weeklyPlans[weekStr]) {
+        db.weeklyPlans[weekStr] = { isClosed:false, days: { Monday:[], Tuesday:[], Wednesday:[], Thursday:[], Friday:[], Saturday:[], Sunday:[] } };
+        DAYS_ENG.forEach(day => {
+            db.dailyMissions.forEach(m => {
+                db.weeklyPlans[weekStr].days[day].push({ id: `${m.id}_${day}`, type:'daily', name: m.name, status:'unstarted' });
+            });
+        });
+    }
+}
+
+function loadWeeklyPlanKanban() {
+    const weekStr = document.getElementById('plan-week-select').value;
+    if(!weekStr) return; initWeeklyPlan(weekStr);
+    renderKanbanFlow('plan-kanban-board', weekStr, true);
+}
+
+function renderKanbanFlow(boardId, weekStr, editable) {
+    const board = document.getElementById(boardId);
+    board.innerHTML = '';
+    const plan = db.weeklyPlans[weekStr];
+    
+    DAYS_ENG.forEach((lane, idx) => {
+        const laneEl = document.createElement('div');
+        laneEl.className = 'kanban-lane';
+        laneEl.innerHTML = `<h3>${DAYS_JPN[idx]}</h3><div class="cards-area" style="min-height:500px;" ondragover="allowDrop(event)" ondrop="drop(event, '${lane}', '${weekStr}')"></div>`;
+        const area = laneEl.querySelector('.cards-area');
+        
+        const tasks = plan.days[lane] || [];
+        let groups = { 'daily': { name: 'デイリーミッション', subject: '', bookTitle: '', tasks: [] } };
+        
+        tasks.forEach(t => {
+            if(t.type === 'daily') { groups['daily'].tasks.push(t); }
+            else {
+                const book = db.books.find(b => b.id === t.bookId);
+                const gKey = book ? `${book.subject}_${book.id}` : 'unknown';
+                if(!groups[gKey]) {
+                    groups[gKey] = { 
+                        name: book ? `[${book.subject}] ${book.title}` : '不明', 
+                        subject: book ? book.subject : '', 
+                        bookTitle: book ? book.title : '',
+                        tasks: [] 
+                    };
+                }
+                groups[gKey].tasks.push(t);
+            }
+        });
+        
+        // 【ソート1】グループ（教科 ＞ 本の名前）を並び替える
+        let groupKeys = Object.keys(groups).filter(k => k !== 'daily');
+        groupKeys.sort((a, b) => {
+            let idxA = SUBJECT_SORT_ORDER.indexOf(groups[a].subject);
+            let idxB = SUBJECT_SORT_ORDER.indexOf(groups[b].subject);
+            if (idxA !== idxB) return idxA - idxB;
+            return groups[a].bookTitle.localeCompare(groups[b].bookTitle, 'ja');
+        });
+        
+        // 常にデイリーが一番上
+        let sortedKeys = ['daily'].concat(groupKeys);
+        
+        sortedKeys.forEach(key => {
+            const g = groups[key];
+            if(g.tasks.length === 0) return;
+            
+            // 【ソート2】グループ内のカードを「項番順」にソート
+            if(key !== 'daily') {
+                g.tasks.sort((a, b) => parseInt(a.itemNumber) - parseInt(b.itemNumber));
+            }
+            
+            const gEl = document.createElement('div');
+            gEl.className = 'kanban-group';
+            
+            let btnHtml = '';
+            if(editable && key !== 'daily') {
+                btnHtml = `<button onclick="openGroupMoveModal('${lane}', '${key}', '${g.name}')">一括移動</button>`;
+            }
+            gEl.innerHTML = `<div class="kanban-group-header"><span>${g.name}</span>${btnHtml}</div>`;
+            
+            g.tasks.forEach(t => {
+                const card = document.createElement('div');
+                card.className = `task-card ${t.type} ${t.status}`;
+                card.id = `${boardId}_${t.id}`;
+                
+                if(editable && t.type !== 'daily') {
+                    card.draggable = true; card.ondragstart = (e) => e.dataTransfer.setData("text", t.id);
+                }
+                if(!editable) { 
+                    card.onclick = () => openProgressReportModal(weekStr, lane, t);
+                }
+                
+                if(t.type === 'daily') card.innerHTML = t.name;
+                else card.innerHTML = `項番: ${t.itemNumber}`;
+                
+                gEl.appendChild(card);
+            });
+            area.appendChild(gEl);
+        });
+        board.appendChild(laneEl);
+    });
+}
+
+function allowDrop(ev) { ev.preventDefault(); }
+function drop(ev, targetLane, weekStr) {
+    ev.preventDefault();
+    const id = ev.dataTransfer.getData("text"); 
+    if(!id) return;
+    const plan = db.weeklyPlans[weekStr];
+    
+    let found = null;
+    Object.keys(plan.days).forEach(l => {
+        const idx = plan.days[l].findIndex(t => t.id === id);
+        if(idx !== -1) found = plan.days[l].splice(idx,1)[0];
+    });
+    if(found) { plan.days[targetLane].push(found); saveDB(); loadWeeklyPlanKanban(); }
+}
+
+function openGroupMoveModal(srcDay, groupKey, groupName) {
+    document.getElementById('group-move-desc').innerText = `${groupName} をまとめて移動します。`;
+    document.getElementById('move-src-day').value = srcDay;
+    document.getElementById('move-group-key').value = groupKey;
+    showModal('modal-group-move');
+}
+function executeGroupMove() {
+    const weekStr = document.getElementById('plan-week-select').value;
+    const srcDay = document.getElementById('move-src-day').value;
+    const gKey = document.getElementById('move-group-key').value;
+    const targetDay = document.getElementById('move-target-day').value;
+    
+    const plan = db.weeklyPlans[weekStr];
+    const srcTasks = plan.days[srcDay] || [];
+    
+    let kept = [], moved = [];
+    srcTasks.forEach(t => {
+        if(t.type === 'book') {
+            const book = db.books.find(b => b.id === t.bookId);
+            const key = book ? `${book.subject}_${book.id}` : 'unknown';
+            if(key === gKey) { moved.push(t); return; }
+        }
+        kept.push(t);
+    });
+    
+    plan.days[srcDay] = kept;
+    plan.days[targetDay] = (plan.days[targetDay] || []).concat(moved);
+    saveDB(); closeAllModals(); loadWeeklyPlanKanban();
+}
+
+// --- 予定追加ウィザード（クリック複数選択仕様） ---
+function openAddPlanWizard() {
+    const select = document.getElementById('wizard-book-select');
+    select.innerHTML = db.books.map(b => `<option value="${b.id}">[${b.subject}] ${b.title}</option>`).join('');
+    wizardSelectedNumbers = []; // リセット
+    renderWizardBookDetails();
+    showModal('modal-add-plan');
+}
+
+function renderWizardBookDetails() {
+    const bookId = document.getElementById('wizard-book-select').value;
+    const container = document.getElementById('wizard-book-table-container');
+    if(!bookId) { container.innerHTML = ''; return; }
+    
+    const book = db.books.find(b => b.id === bookId);
+    let html = `<table><tr><th>選択</th><th>項番</th><th>単元名</th><th>マイルストーン</th><th>過去履歴</th></tr>`;
+    
+    book.items.forEach(i => {
+        let msObj = db.milestones.find(m => m.id === i.milestoneId);
+        let msText = msObj ? `${msObj.title}(${msObj.date})` : '-';
+        let historyText = i.history.map(h => `[${h.clearLevel}]`).join(' ');
+        
+        // 既に一時選択配列にあるならクラスを付与
+        const isSelected = wizardSelectedNumbers.includes(i.itemNumber) ? 'selected' : '';
+        
+        html += `
+            <tr class="selectable-row ${isSelected}" onclick="toggleWizardRow(this, ${i.itemNumber})">
+                <td class="chk-indicator" style="text-align:center;">${isSelected ? '●':'○'}</td>
+                <td><strong>${i.itemNumber}</strong></td>
+                <td>${i.sectionName || '-'}</td>
+                <td style="color:#2980b9;">${msText}</td>
+                <td style="font-size:0.75rem; color:#7f8c8d;">${historyText || '未'}</td>
+            </tr>
+        `;
+    });
+    html += `</table>`;
+    container.innerHTML = html;
+}
+
+function toggleWizardRow(rowEl, num) {
+    const idx = wizardSelectedNumbers.indexOf(num);
+    if(idx === -1) {
+        wizardSelectedNumbers.push(num);
+        rowEl.classList.add('selected');
+        rowEl.querySelector('.chk-indicator').innerText = '●';
+    } else {
+        wizardSelectedNumbers.splice(idx, 1);
+        rowEl.classList.remove('selected');
+        rowEl.querySelector('.chk-indicator').innerText = '○';
+    }
+}
+
+function addSelectedItemsToWeek() {
+    const weekStr = document.getElementById('plan-week-select').value;
+    const bookId = document.getElementById('wizard-book-select').value;
+    
+    if(!bookId || wizardSelectedNumbers.length === 0) return alert("項目が選択されていません。表の中をクリックしてください。");
+    
+    // 項番を数値ソート
+    wizardSelectedNumbers.sort((a,b) => a - b);
+    
+    // 月〜金（5日間）に傾斜自動配分（端数は月曜から順に厚く配分）
+    const base = Math.floor(wizardSelectedNumbers.length / 5);
+    let rem = wizardSelectedNumbers.length % 5;
+    const weekdays = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
+    
+    let currentIdx = 0;
+    weekdays.forEach((day, dIdx) => {
+        let count = base + (dIdx < rem ? 1 : 0); // 余りは月曜(dIdx=0)から順に+1加算
+        for(let c=0; c<count; c++) {
+            if(currentIdx >= wizardSelectedNumbers.length) break;
+            let num = wizardSelectedNumbers[currentIdx];
+            let countId = Date.now() + '_' + currentIdx; 
+            db.weeklyPlans[weekStr].days[day].push({
+                id: `${bookId}_item${num}_${countId}`, type:'book', bookId, itemNumber:num, status:'unstarted'
+            });
+            currentIdx++;
+        }
+    });
+    
+    saveDB(); closeAllModals(); loadWeeklyPlanKanban();
+}
+
+// --- 5. 進捗報告機能 ---
+function loadReportKanban() {
+    const weekStr = document.getElementById('report-week-select').value;
+    if(!weekStr) return; initWeeklyPlan(weekStr);
+    renderKanbanFlow('report-kanban-board', weekStr, false);
+}
+
+function openProgressReportModal(weekStr, day, task) {
+    document.getElementById('report-target-week').value = weekStr;
+    document.getElementById('report-target-day').value = day;
+    document.getElementById('report-target-id').value = task.id;
+    
+    if(task.type === 'daily') {
+        document.getElementById('report-target-desc').innerText = `日課: ${task.name}`;
+        document.getElementById('report-status-select').innerHTML = `<option value="unstarted">未着手</option><option value="completed">完了</option>`;
+    } else {
+        const book = db.books.find(b => b.id === task.bookId);
+        document.getElementById('report-target-desc').innerText = `教材: ${book?book.title:''} (項番: ${task.itemNumber})`;
+        document.getElementById('report-status-select').innerHTML = `<option value="unstarted">未着手</option><option value="reported">記入済み</option><option value="completed">完了</option>`;
+    }
+    document.getElementById('report-status-select').value = task.status;
+    toggleReportLevelArea(task.status);
+    showModal('modal-report-input');
+}
+
+function toggleReportLevelArea(status) {
+    document.getElementById('report-level-area').style.display = status === 'completed' ? 'block' : 'none';
+}
+
+function submitProgressReport() {
+    const weekStr = document.getElementById('report-target-week').value;
+    const day = document.getElementById('report-target-day').value;
+    const id = document.getElementById('report-target-id').value;
+    const status = document.getElementById('report-status-select').value;
+    
+    const plan = db.weeklyPlans[weekStr];
+    const task = plan.days[day].find(t => t.id === id);
+    if(task) {
+        task.status = status;
+        if(task.type === 'book' && status === 'completed') {
+            const level = document.getElementById('report-level-select').value; // '◎', '○', '△' のみ取得される
+            const date = document.getElementById('report-date-input').value || new Date().toISOString().split('T')[0];
+            
+            const book = db.books.find(b => b.id === task.bookId);
+            const item = book.items.find(i => i.itemNumber === task.itemNumber);
+            if(item) {
+                // 【同一日上書きロジック】履歴の中から同じ完了日（date）のものがあるか検索
+                const existingIdx = item.history.findIndex(h => h.date === date);
+                if (existingIdx !== -1) {
+                    // 同じ日付があれば上書き
+                    item.history[existingIdx].clearLevel = level;
+                } else {
+                    // なければ新規追加
+                    item.history.push({ date, clearLevel: level });
+                }
+            }
+        }
+    }
+    saveDB(); closeAllModals(); loadReportKanban();
+}
+
+function closeCurrentWeek() {
+    const weekStr = document.getElementById('report-week-select').value;
+    if(!weekStr || !confirm("週を終了しますか？未着手はリセット、記入済みは翌週月曜に自動配置されます。")) return;
+    
+    const currentPlan = db.weeklyPlans[weekStr];
+    const currentMon = new Date(weekStr);
+    const nextWeekStr = new Date(currentMon.setDate(currentMon.getDate() + 7)).toISOString().split('T')[0];
+    
+    initWeeklyPlan(nextWeekStr);
+    const nextPlan = db.weeklyPlans[nextWeekStr];
+    
+    DAYS_ENG.forEach(day => {
+        const tasks = currentPlan.days[day] || [];
+        for(let i = tasks.length - 1; i >= 0; i--) {
+            const t = tasks[i];
+            if(t.type === 'book') {
+                if(t.status === 'unstarted') { tasks.splice(i, 1); }
+                else if(t.status === 'reported') {
+                    nextPlan.days['Monday'].push({ ...t, id: t.id + '_roll', status: 'reported' });
+                    tasks.splice(i, 1);
+                }
+            }
+        }
+    });
+    currentPlan.isClosed = true; saveDB();
+    alert("終了処理を完了しました。翌週に遷移します。");
+    document.getElementById('plan-week-select').value = nextWeekStr;
+    document.getElementById('report-week-select').value = nextWeekStr;
+    switchPage('plan');
+}
+
+window.onload = function() { loadDB(); };
+</script>
+</body>
+</html>
