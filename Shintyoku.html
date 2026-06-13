@@ -303,6 +303,7 @@
         .badge-level.level-double-circle { background-color: var(--primary-color); }
         .badge-level.level-circle { background-color: var(--warning-color); color: #2c3e50; }
         .badge-level.level-triangle { background-color: var(--danger-color); }
+        .badge-level.level-done { background-color: #bdc3c7; color: #2c3e50; }
 
         .badge-schedule {
             display: inline-block;
@@ -492,14 +493,6 @@
             </div>
             <button onclick="applyBulkMilestoneFromModal()" style="background: var(--primary-color); color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer;">目標を適用</button>
         </div>
-        <div style="flex: 1; border-left: 1px dashed var(--border-color); padding-left: 15px;">
-            <h4>③ カバー画像のURL設定</h4>
-            <div class="form-group">
-                <input type="url" id="bulk-cover-url" placeholder="https://.../image.jpg" style="padding: 6px;">
-            </div>
-            <button onclick="applyBookCoverFromModal()" style="background: #9b59b6; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer;">画像を適用</button>
-            <p style="font-size: 0.75rem; color: #7f8c8d; margin-top: 5px;">※空欄のまま適用すると未設定（リセット）になります。行の選択状況に関わらず、この本全体に適用されます。</p>
-        </div>        
     </div>
     <div style="margin-top: 20px; text-align: right;">
         <button onclick="closeAllModals()" style="background: #7f8c8d; color: white; padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer;">閉じる</button>
@@ -540,6 +533,21 @@
     <div class="form-group"><label>開始項番</label><input type="number" id="new-book-start" value="1"></div>
     <div class="form-group"><label>終了項番</label><input type="number" id="new-book-end" value="100"></div>
     <button onclick="addBook()">本棚に追加</button> <button onclick="closeAllModals()">キャンセル</button>
+</div>
+
+<div id="modal-book-cover" class="modal">
+    <h3>🖼️ カバー画像の設定</h3>
+    <div class="form-group">
+        <label>画像のURL</label>
+        <input type="url" id="book-cover-url-input" placeholder="https://example.com/image.jpg">
+    </div>
+    <p style="font-size: 0.8rem; color: #7f8c8d; margin-top: -5px; margin-bottom: 15px;">
+        ※空欄のまま登録すると、画像が解除（未設定にリセット）されます。
+    </p>
+    <div style="display: flex; gap: 10px;">
+        <button onclick="saveBookCoverFromModal()" style="background: var(--primary-color); color: white; flex: 1;">登録</button>
+        <button onclick="closeAllModals()" style="background: #95a5a6; color: white; flex: 1;">キャンセル</button>
+    </div>
 </div>
 
 <div id="modal-add-plan" class="modal" style="max-width:850px;">
@@ -989,9 +997,46 @@ function renderBookshelf() {
 }
 
 function renderBookDetail(bookId) {
+    currentSelectedBookId = bookId; // グローバル変数の更新を保証
     const book = db.books.find(b => b.id === bookId);
+    if (!book) return; // 安全のためのガード
+
+    // 1. タイトルテキストの更新
     document.getElementById('detail-book-title').innerText = `${book.title} (${book.subject}) 詳細`;
     
+    // 2. 【位置修正】カバー画像ヘッダーを、詳細ページの「一番上（先頭）」に確実に移動・挿入する
+    let headerContainer = document.getElementById('book-detail-cover-header');
+    if (!headerContainer) {
+        // タイトル要素の「親要素」を取得（詳細ページのメインコンテナ）
+        const titleElem = document.getElementById('detail-book-title');
+        const mainContainer = titleElem.parentNode;
+        
+        headerContainer = document.createElement('div');
+        headerContainer.id = 'book-detail-cover-header';
+        
+        // 親コンテナの「最初の子要素（一番上）」としてカバー画像エリアを挿入
+        mainContainer.insertBefore(headerContainer, mainContainer.firstChild);
+    }
+    
+    // 画像が設定されているかどうかの判定とHTML生成
+    const coverHtml = book.coverUrl 
+        ? `<img src="${book.coverUrl}" style="width:80px; height:80px; object-fit:cover; object-position:left top; border-radius:6px; box-shadow:0 2px 4px rgba(0,0,0,0.1);">`
+        : `<div style="width:80px; height:80px; background:${SUBJECT_COLORS[book.subject] || '#7f8c8d'}; color:white; display:flex; align-items:center; justify-content:center; font-size:2rem; border-radius:6px; opacity:0.3; font-weight:bold;">📖</div>`;
+
+    headerContainer.innerHTML = `
+        <div style="background:var(--card-bg); border:1px solid var(--border-color); padding:15px; border-radius:8px; margin-bottom:15px; display:flex; gap:15px; align-items:center;">
+            ${coverHtml}
+            <div>
+                <span class="subject-badge" style="background-color:${SUBJECT_COLORS[book.subject]}; color:white; padding:2px 6px; font-size:0.75rem; border-radius:4px; display:inline-block; margin-bottom:4px;">${book.subject}</span>
+                <p style="margin:0; color:#7f8c8d; font-size:0.85rem;">項番範囲: ${book.start} 〜 ${book.end}</p>
+                <button onclick="editBookCoverUrl('${book.id}')" style="background:none; border:none; color:#2980b9; text-decoration:underline; font-size:0.85rem; padding:0; margin-top:6px; cursor:pointer; display:block;">
+                    🖼️ カバー画像を設定・変更
+                </button>
+            </div>
+        </div>
+    `;
+
+    // 3. テーブルのレンダリング（既存のロジックを完全維持）
     const table = document.getElementById('book-items-table');
     let html = `<tr><th>項番</th><th>単元名</th><th>マイルストーン</th><th style="width: 45%;">実施履歴 / 週間予定</th></tr>`;
     
@@ -1007,6 +1052,7 @@ function renderBookDetail(bookId) {
             let className = "level-double-circle";
             if (l.clearLevel === "○") className = "level-circle";
             if (l.clearLevel === "△") className = "level-triangle";
+            if (l.clearLevel === "済") className = "level-done";
             return `<span class="badge-level ${className}">${l.clearLevel}</span><span style="font-size:0.75rem; color:#7f8c8d; margin-right:8px;">(${l.finish_date || l.plan_date})</span>`;
         }).join('');
 
@@ -1037,6 +1083,55 @@ function renderBookDetail(bookId) {
     table.innerHTML = html;
 }
 
+// 本の詳細ページからカバー画像変更モーダルを開く
+function editBookCoverUrl(bookId) {
+    // ターゲットの本を確定（currentSelectedBookIdがすでに入っていればそれを使ってもOK）
+    currentSelectedBookId = bookId;
+    const book = db.books.find(b => b.id === bookId);
+    if (!book) return;
+
+    // モーダル内の入力欄に現在のURL（未設定なら空文字）をセット
+    document.getElementById('book-cover-url-input').value = book.coverUrl || '';
+
+    // モーダルを表示（アプリ既存のモーダル表示関数を開く。一般的にはクラス追加やstyle変更など）
+    // もし既存の共通関数があればそれを使い、なければ直にスタイルを変えます
+    if (typeof openModal === "function") {
+        openModal('modal-book-cover');
+    } else {
+        document.getElementById('modal-book-cover').style.display = 'block';
+        // 背景のオーバーレイ（遮蔽幕）がある場合はそれも表示させてください
+        const overlay = document.getElementById('modal-overlay');
+        if (overlay) overlay.style.display = 'block';
+    }
+}
+
+// モーダルから画像URLを保存する処理
+function saveBookCoverFromModal() {
+    const book = db.books.find(b => b.id === currentSelectedBookId);
+    if (!book) return;
+
+    const urlInput = document.getElementById('book-cover-url-input').value.trim();
+    
+    // データを更新（空文字なら未設定になる）
+    book.coverUrl = urlInput;
+    
+    // データベースへ保存
+    saveDB();
+
+    // 画面のリフレッシュ
+    renderBookDetail(currentSelectedBookId);
+    renderBookshelf();
+
+    // モーダルを閉じる
+    if (typeof closeAllModals === "function") {
+        closeAllModals();
+    } else {
+        document.getElementById('modal-book-cover').style.display = 'none';
+        const overlay = document.getElementById('modal-overlay');
+        if (overlay) overlay.style.display = 'none';
+    }
+}
+
 // --- 4. 一括設定ダイアログ ---
 function openBulkSettingModal() {
     bulkSelectedNumbers = [];
@@ -1045,7 +1140,6 @@ function openBulkSettingModal() {
     document.getElementById('quick-start').value = book.start;
     document.getElementById('quick-end').value = book.end;
     document.getElementById('bulk-unit-name').value = '';
-    document.getElementById('bulk-cover-url').value = book.coverUrl || '';
 
     const msSelect = document.getElementById('bulk-ms-select');
     msSelect.innerHTML = `<option value="">--選択なし--</option>` + db.milestones.map(m=>`<option value="${m.id}">${m.title}(${m.date})</option>`).join('');
@@ -1143,24 +1237,6 @@ function applyBulkMilestoneFromModal() {
     book.sections = res.sections;
     book.milestones = res.milestones;
     saveDB(); renderBookDetail(currentSelectedBookId); openBulkSettingModal();
-}
-
-// モーダルから本のカバー画像URLを適用（未設定許容）
-function applyBookCoverFromModal() {
-    const url = document.getElementById('bulk-cover-url').value.trim();
-    const book = db.books.find(b => b.id === currentSelectedBookId);
-    
-    if(!book) return;
-    
-    // 画像URLを保存（空文字の場合は未設定状態になる）
-    book.coverUrl = url;
-    
-    saveDB();
-    alert(url ? "カバー画像を設定しました。" : "カバー画像を解除（未設定に）しました。");
-    
-    // 画面の再描画
-    renderBookDetail(currentSelectedBookId);
-    openBulkSettingModal();
 }
 
 // --- 5. カンバンコア ---
@@ -1337,6 +1413,7 @@ function renderWizardBookDetails() {
             let className = "level-double-circle";
             if (l.clearLevel === "○") className = "level-circle";
             if (l.clearLevel === "△") className = "level-triangle";
+            if (l.clearLevel === "済") className = "level-done";
             return `<span class="badge-level ${className}">${l.clearLevel}</span>`;
         }).join('');
 
