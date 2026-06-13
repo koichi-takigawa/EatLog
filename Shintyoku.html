@@ -320,10 +320,24 @@
     </div>
     
     <hr style="margin: 30px 0; border:0; border-top:1px solid var(--border-color);">
-    <h3>データの保存と読み込み</h3>
+    
+    <h3>💾 データの保存と読み込み</h3>
     <button onclick="exportData()">データをJSONで保存</button>
     <input type="file" id="import-file" onchange="importData(event)" style="display:none">
     <button onclick="document.getElementById('import-file').click()">データをJSONから読み込み</button>
+
+    <hr style="margin: 30px 0; border:0; border-top:1px solid var(--border-color);">
+
+    <h3>🌐 クラウドデータ同期 (GAS連携)</h3>
+    <div class="form-group">
+        <label>GAS Webアプリ URL</label>
+        <input type="url" id="gas-url-input" placeholder="https://script.google.com/macros/s/.../exec" style="padding: 8px; font-size: 0.9rem;">
+    </div>
+    <div style="display: flex; gap: 10px;">
+        <button onclick="syncDownload()">クラウドからデータ取得 (未保存は上書きされます)</button>
+        <button onclick="syncUpload()">現在の進捗をクラウドへ保存</button>
+    </div>
+    <p id="sync-status-msg" style="margin-top: 8px; font-size: 0.85rem; font-weight: bold; color: #2c3e50;"></p>
 
     <button class="fab" onclick="showModal('modal-add-milestone')">＋</button>
 </div>
@@ -1415,8 +1429,96 @@ function closeCurrentWeek() {
     switchPage('plan');
 }
 
+// --- GAS クラウド同期ロジック (v4.4 手動実行専用版) ---
+
+// 1. クラウドへ現在のデータを送信（保存）
+async function syncUpload() {
+    const url = document.getElementById('gas-url-input').value.trim();
+    const statusMsg = document.getElementById('sync-status-msg');
+    if (!url) return alert("GASのWebアプリURLを入力してください。");
+
+    statusMsg.innerText = "⏳ データを送信中...";
+    statusMsg.style.color = "#d35400";
+
+    try {
+        const response = await fetch(url, {
+            method: "POST",
+            mode: "cors",
+            headers: { "Content-Type": "text/plain" },
+            body: JSON.stringify(db)
+        });
+        
+        const resData = await response.json();
+        if (resData.status === "success") {
+            statusMsg.innerText = "✅ クラウドへの保存が完了しました！";
+            statusMsg.style.color = "var(--success-color)";
+            
+            // 【変更】通信成功時のみ、URLをLocalStorageに保存し、次回起動時も入力欄に残るようにする
+            localStorage.setItem('study_progress_gas_url', url);
+        } else {
+            statusMsg.innerText = `❌ 保存失敗: ${resData.message}`;
+            statusMsg.style.color = "var(--danger-color)";
+        }
+    } catch (error) {
+        console.error(error);
+        statusMsg.innerText = "❌ 通信エラーが発生しました。URLやデプロイ設定を確認してください。";
+        statusMsg.style.color = "var(--danger-color)";
+    }
+}
+
+// 2. クラウドからデータを取得（同期）
+async function syncDownload() {
+    const url = document.getElementById('gas-url-input').value.trim();
+    const statusMsg = document.getElementById('sync-status-msg');
+    if (!url) return alert("GASのWebアプリURLを入力してください。");
+
+    if (!confirm("クラウド上のデータで現在の進捗を上書きします。よろしいですか？")) return;
+
+    statusMsg.innerText = "⏳ データを取得中...";
+    statusMsg.style.color = "#d35400";
+
+    try {
+        const response = await fetch(url, {
+            method: "GET",
+            mode: "cors"
+        });
+        
+        const cloudData = await response.json();
+        
+        if (cloudData && typeof cloudData === 'object' && cloudData.books) {
+            db = cloudData;
+            saveDB(); // ローカルのLocalStorageにも即時反映
+            
+            statusMsg.innerText = "✅ クラウドからのデータ同期に成功しました！";
+            statusMsg.style.color = "var(--success-color)";
+            
+            // 【変更】通信成功時のみ、URLをLocalStorageに保存し、次回起動時も入力欄に残るようにする
+            localStorage.setItem('study_progress_gas_url', url);
+            
+            // 画面の再描画
+            switchPage('top');
+        } else {
+            statusMsg.innerText = "❌ 不正なデータ形式のため同期を中断しました。";
+            statusMsg.style.color = "var(--danger-color)";
+        }
+    } catch (error) {
+        console.error(error);
+        statusMsg.innerText = "❌ 通信エラーが発生しました。URLやデプロイ設定を確認してください。";
+        statusMsg.style.color = "var(--danger-color)";
+    }
+}
+
+// 【追加】起動時に「URLの文字列だけ」を入力欄に復元する関数（データ通信はしません）
+function loadGasUrlOnly() {
+    const savedUrl = localStorage.getItem('study_progress_gas_url');
+    if (savedUrl) {
+        document.getElementById('gas-url-input').value = savedUrl;
+    }
+}
+
 window.onload = function() { 
     loadDB(); 
+    loadGasUrlOnly();
     renderTopMilestonesList(); 
 };
 </script>
