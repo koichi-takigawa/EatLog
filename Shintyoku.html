@@ -165,7 +165,7 @@
 
         .task-card {
             background: var(--card-bg);
-            border-left: 5px solid var(--primary-color);
+            border-bottom: 5px solid var(--danger-color);
             padding: 8px;
             margin-bottom: 5px;
             border-radius: 4px;
@@ -174,8 +174,24 @@
             cursor: grab;
         }
         .task-card.daily { border-left-color: #9b59b6; cursor: default; }
-        .task-card.reported { border-left-color: var(--warning-color); }
-        .task-card.completed { border-left-color: var(--success-color); opacity: 0.6; cursor: default; }
+        .task-card.book {
+
+            /* 横並びにするための設定 */
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+
+            /* 数字が2～3桁でも綺麗な正方形～長方形を維持 */
+            min-width: 36px;
+            padding: 3px;
+            margin-right: 5px;
+            margin-bottom: 5px;
+            font-size: 1.1rem;
+            font-weight: bold;
+            cursor: default; 
+        }
+        .task-card.reported { border-bottom-color: var(--warning-color); }
+        .task-card.completed { border-bottom-color: var(--success-color); opacity: 0.6; cursor: default; }
         .report-board .task-card { cursor: pointer; } 
         .report-board .task-card.completed { cursor: pointer; } 
 
@@ -1329,7 +1345,7 @@ function renderKanbanFlow(boardId, mondayStr, editable) {
                     if(!editable) card.onclick = () => openProgressReportModal(t);
                 } else {
                     card.id = `${boardId}_${t.id}`;
-                    card.innerHTML = `項番: ${t.itemNumber} <span style="font-size:0.7rem; color:#7f8c8d;">(${t.times}回目)</span>`;
+                    card.innerHTML = `${t.itemNumber}`;
                     if(editable && t.status !== 'completed') {
                         card.draggable = true; 
                         card.ondragstart = (e) => e.dataTransfer.setData("text", t.id);
