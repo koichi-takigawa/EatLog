@@ -56,13 +56,6 @@
         /* 本棚レイアウト */
         .bookshelf {
             display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-            gap: 20px;
-            margin-top: 20px;
-        }
-        /* 本棚レイアウト（画像対応版） */
-        .bookshelf {
-            display: grid;
             grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
             gap: 20px;
             margin-top: 20px;
@@ -182,7 +175,6 @@
         }
         .task-card.daily { border-left-color: #9b59b6; cursor: default; }
         .task-card.book {
-
             /* 横並びにするための設定 */
             display: inline-flex;
             align-items: center;
@@ -440,7 +432,7 @@
         <button onclick="switchPage('books')">← 本棚に戻る</button>
         <button onclick="openBulkSettingModal()" style="background: var(--primary-color); color: white; padding: 8px 16px; border: none; border-radius: 4px; font-weight: bold; cursor: pointer;">一括設定を行う</button>
     </div>
-    <div id="detail-book-title" style="font-size: 1.5rem; font-weight: bold; margin-bottom: 12px;"></div>
+    <div id="detail-book-title" style="font-size: 1.5rem; font-weight: bold; margin-bottom: 12px; display: flex; align-items: center; flex-wrap: wrap; gap: 10px;"></div>
     
     <h3>項目一覧</h3>
     <table id="book-items-table"></table>
@@ -566,6 +558,18 @@
     <div style="display: flex; gap: 10px;">
         <button onclick="saveBookCoverFromModal()" style="background: var(--primary-color); color: white; flex: 1;">登録</button>
         <button onclick="closeAllModals()" style="background: #95a5a6; color: white; flex: 1;">キャンセル</button>
+    </div>
+</div>
+
+<div id="modal-edit-book-title" class="modal">
+    <h3>📖 教材タイトルの変更</h3>
+    <div class="form-group">
+        <label>新しいタイトル</label>
+        <input type="text" id="edit-book-title-input" placeholder="教材のタイトルを入力してください">
+    </div>
+    <div style="display: flex; gap: 10px; margin-top: 25px;">
+        <button onclick="saveBookTitleFromModal()" style="background: var(--primary-color); color: white; flex: 1; padding: 10px; border: none; border-radius: 4px; font-weight: bold; cursor: pointer;">変更を保存</button>
+        <button onclick="closeAllModals()" style="background: #95a5a6; color: white; flex: 1; padding: 10px; border: none; border-radius: 4px; font-weight: bold; cursor: pointer;">キャンセル</button>
     </div>
 </div>
 
@@ -1036,10 +1040,13 @@ function renderBookDetail(bookId) {
     const book = db.books.find(b => b.id === bookId);
     if (!book) return; // 安全のためのガード
 
-    // 1. タイトルテキストの更新
-    document.getElementById('detail-book-title').innerText = `${book.title} (${book.subject}) 詳細`;
+    // 1. タイトルテキストの更新（編集用ペンマークボタンを統合）
+    document.getElementById('detail-book-title').innerHTML = `
+        <span>${book.title} 詳細</span>
+        <button onclick="openEditBookTitleModal('${book.id}')" style="background:none; border:none; color:#2980b9; text-decoration:underline; font-size:0.9rem; margin-left:12px; cursor:pointer;" title="タイトルを編集する">✏️</button>
+    `;
     
-    // 2. 【位置修正】カバー画像ヘッダーを、詳細ページの「一番上（先頭）」に確実に移動・挿入する
+    // 2. カバー画像ヘッダーを、詳細ページの「一番上（先頭）」に確実に移動・挿入する
     let headerContainer = document.getElementById('book-detail-cover-header');
     if (!headerContainer) {
         // タイトル要素の「親要素」を取得（詳細ページのメインコンテナ）
@@ -1071,7 +1078,7 @@ function renderBookDetail(bookId) {
         </div>
     `;
 
-    // 3. テーブルのレンダリング（既存のロジックを完全維持）
+    // 3. テーブルのレンダリング
     const table = document.getElementById('book-items-table');
     let html = `<tr><th>項番</th><th>単元名</th><th>マイルストーン</th><th style="width: 45%;">実施履歴 / 週間予定</th></tr>`;
     
@@ -1127,17 +1134,7 @@ function editBookCoverUrl(bookId) {
 
     // モーダル内の入力欄に現在のURL（未設定なら空文字）をセット
     document.getElementById('book-cover-url-input').value = book.coverUrl || '';
-
-    // モーダルを表示（アプリ既存のモーダル表示関数を開く。一般的にはクラス追加やstyle変更など）
-    // もし既存の共通関数があればそれを使い、なければ直にスタイルを変えます
-    if (typeof openModal === "function") {
-        openModal('modal-book-cover');
-    } else {
-        document.getElementById('modal-book-cover').style.display = 'block';
-        // 背景のオーバーレイ（遮蔽幕）がある場合はそれも表示させてください
-        const overlay = document.getElementById('modal-overlay');
-        if (overlay) overlay.style.display = 'block';
-    }
+    showModal('modal-book-cover');
 }
 
 // モーダルから画像URLを保存する処理
@@ -1156,15 +1153,33 @@ function saveBookCoverFromModal() {
     // 画面のリフレッシュ
     renderBookDetail(currentSelectedBookId);
     renderBookshelf();
+    closeAllModals();
+}
 
-    // モーダルを閉じる
-    if (typeof closeAllModals === "function") {
-        closeAllModals();
-    } else {
-        document.getElementById('modal-book-cover').style.display = 'none';
-        const overlay = document.getElementById('modal-overlay');
-        if (overlay) overlay.style.display = 'none';
-    }
+// 本の詳細ページから教材タイトル変更モーダルを開く
+function openEditBookTitleModal(bookId) {
+    currentSelectedBookId = bookId;
+    const book = db.books.find(b => b.id === bookId);
+    if (!book) return;
+
+    document.getElementById('edit-book-title-input').value = book.title;
+    showModal('modal-edit-book-title');
+}
+
+// モーダルから教材タイトルを保存する処理
+function saveBookTitleFromModal() {
+    const book = db.books.find(b => b.id === currentSelectedBookId);
+    if (!book) return;
+
+    const newTitle = document.getElementById('edit-book-title-input').value.trim();
+    if (!newTitle) return alert("タイトルを入力してください。");
+
+    book.title = newTitle;
+    saveDB();
+
+    renderBookDetail(currentSelectedBookId);
+    renderBookshelf();
+    closeAllModals();
 }
 
 // --- 4. 一括設定ダイアログ ---
@@ -1281,7 +1296,7 @@ function loadWeeklyPlanKanban() {
     renderKanbanFlow('plan-kanban-board', weekStr, true);
 }
 
-// 【復元】進捗報告用のカンバン読み込みエントリーポイント
+// 進捗報告用のカンバン読み込みエントリーポイント
 function loadReportKanban() {
     const weekStr = document.getElementById('report-week-select').value;
     if(!weekStr) return;
@@ -1326,7 +1341,7 @@ function renderKanbanFlow(boardId, mondayStr, editable) {
             groups[gKey].tasks.push(t);
         });
         
-        // 【ソート1】グループ（教科 ＞ 本の名前）を並び替える
+        // グループ（教科 ＞ 本の名前）を並び替える
         let groupKeys = Object.keys(groups).filter(k => k !== 'daily');
         groupKeys.sort((a, b) => {
             let idxA = SUBJECT_SORT_ORDER.indexOf(groups[a].subject);
@@ -1433,7 +1448,7 @@ function drop(ev, targetDayIdx, mondayStr, boardId) {
     }
 
     // 単一タスクカード移動の処理
-    const logId = dragData; // 分かりやすいように変数名を対応
+    const logId = dragData;
     const log = db.progressLogs.find(l => l.id === logId);
     if (log) {
         log.plan_date = targetDateStr;
@@ -1452,7 +1467,7 @@ function openAddPlanWizard() {
     showModal('modal-add-plan');
 }
 
-// --- 予定追加ウィザードの項目一覧レンダリング（履歴の色付け＆予定あり対応版） ---
+// 予定追加ウィザードの項目一覧レンダリング（履歴の色付け＆予定あり対応版）
 function renderWizardBookDetails() {
     const bookId = document.getElementById('wizard-book-select').value;
     const container = document.getElementById('wizard-book-table-container');
@@ -1779,7 +1794,7 @@ function closeCurrentWeek() {
     switchPage('plan');
 }
 
-// --- GAS クラウド同期ロジック (v4.5 手動実行専用版) ---
+// --- GAS クラウド同期ロジック ---
 
 // 1. クラウドへ現在のデータを送信（保存）
 async function syncUpload() {
@@ -1803,7 +1818,7 @@ async function syncUpload() {
             statusMsg.innerText = "✅ クラウドへの保存が完了しました！";
             statusMsg.style.color = "var(--success-color)";
             
-            // 【変更】通信成功時のみ、URLをLocalStorageに保存し、次回起動時も入力欄に残るようにする
+            // 通信成功時のみ、URLをLocalStorageに保存し、次回起動時も入力欄に残るようにする
             localStorage.setItem('study_progress_gas_url', url);
         } else {
             statusMsg.innerText = `❌ 保存失敗: ${resData.message}`;
@@ -1842,7 +1857,7 @@ async function syncDownload() {
             statusMsg.innerText = "✅ クラウドからのデータ同期に成功しました！";
             statusMsg.style.color = "var(--success-color)";
             
-            // 【変更】通信成功時のみ、URLをLocalStorageに保存し、次回起動時も入力欄に残るようにする
+            // 通信成功時のみ、URLをLocalStorageに保存し、次回起動時も入力欄に残るようにする
             localStorage.setItem('study_progress_gas_url', url);
             
             // 画面の再描画
@@ -1858,7 +1873,7 @@ async function syncDownload() {
     }
 }
 
-// 【追加】起動時に「URLの文字列だけ」を入力欄に復元する関数（データ通信はしません）
+// 起動時に「URLの文字列だけ」を入力欄に復元する関数
 function loadGasUrlOnly() {
     const savedUrl = localStorage.getItem('study_progress_gas_url');
     if (savedUrl) {
