@@ -1317,7 +1317,7 @@ function renderKanbanFlow(boardId, mondayStr, editable) {
             let idxA = SUBJECT_SORT_ORDER.indexOf(groups[a].subject);
             let idxB = SUBJECT_SORT_ORDER.indexOf(groups[b].subject);
             if (idxA !== idxB) return idxA - idxB;
-            return groups[a].bookTitle.localeCompare(groups[b].bookTitle, 'ja');
+            return groups[a].title.localeCompare(groups[b].title, 'ja');
         });
         
         // 常にデイリーが一番上
