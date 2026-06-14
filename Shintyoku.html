@@ -1210,7 +1210,7 @@ function submitWeekSelection() {
     const pickerVal = document.getElementById('popup-week-picker').value;
     if (!pickerVal) return;
 
-    const selectedDate = new Date(pickerVal);
+    const selectedDate = parseLocalDate(pickerVal);
     const monday = getMonday(selectedDate);
     const mondayStr = formatDateString(monday);
 
@@ -1227,7 +1227,7 @@ function submitWeekSelection() {
 
 function initDateInput(id) {
     const input = document.getElementById(id);
-    let currentVal = input.value ? new Date(input.value) : new Date();
+    let currentVal = input.value ? parseLocalDate(input.value) : new Date();
     const monday = getMonday(currentVal);
     const mondayStr = formatDateString(monday);
     
@@ -1241,6 +1241,16 @@ function initDateInput(id) {
     if(id === 'report-week-select') loadReportKanban();
 }
 
+function parseLocalDate(dateStr) {
+    if (!dateStr) return new Date();
+    if (dateStr instanceof Date) return new Date(dateStr);
+    const parts = String(dateStr).split('-');
+    if (parts.length === 3) {
+        return new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
+    }
+    return new Date(dateStr);
+}
+
 function updateWeekRangeDisplay(prefix, mondayDate) {
     const sunday = new Date(mondayDate);
     sunday.setDate(mondayDate.getDate() + 6);
@@ -1249,14 +1259,19 @@ function updateWeekRangeDisplay(prefix, mondayDate) {
 }
 
 function getMonday(d) {
-    d = new Date(d); const day = d.getDay(), diff = d.getDate() - day + (day === 0 ? -6 : 1);
+    d = parseLocalDate(d); 
+    const day = d.getDay(), diff = d.getDate() - day + (day === 0 ? -6 : 1);
     return new Date(d.setDate(diff));
 }
 function formatDateString(dateObj) {
-    return dateObj.toISOString().split('T')[0];
+    if (!dateObj) return "";
+    const y = dateObj.getFullYear();
+    const m = String(dateObj.getMonth() + 1).padStart(2, '0');
+    const d = String(dateObj.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
 }
 function addDays(dateStr, days) {
-    let d = new Date(dateStr);
+    let d = parseLocalDate(dateStr);
     d.setDate(d.getDate() + days);
     return formatDateString(d);
 }
@@ -1300,7 +1315,7 @@ function addMilestone() {
 function renderTopMilestonesList() {
     const ul = document.getElementById('milestones-list');
     if (!ul) return;
-    db.milestones.sort((a,b)=>new Date(a.date)-new Date(b.date));
+    db.milestones.sort((a,b)=>parseLocalDate(a.date)-parseLocalDate(b.date));
     if (db.milestones.length === 0) {
         ul.innerHTML = '<li style="color:#7f8c8d;">マイルストーンが登録されていません。</li>';
         return;
@@ -1313,8 +1328,8 @@ function updateTopMilestoneSummary() {
     
     // 今日以降のマイルストーンを抽出
     let today = new Date(); today.setHours(0,0,0,0);
-    let future = db.milestones.filter(m => new Date(m.date) >= today);
-    future.sort((a,b)=>new Date(a.date)-new Date(b.date));
+    let future = db.milestones.filter(m => parseLocalDate(m.date) >= today);
+    future.sort((a,b)=>parseLocalDate(a.date)-parseLocalDate(b.date));
     
     if(future.length === 0) { container.innerHTML = "直近の予定マイルストーンはありません。"; return; }
     
@@ -1323,7 +1338,7 @@ function updateTopMilestoneSummary() {
     let displayCount = Math.min(4, future.length);
     for(let i=0; i<displayCount; i++) {
         let m = future[i];
-        let diffTime = new Date(m.date) - today;
+        let diffTime = parseLocalDate(m.date) - today;
         let diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
         html += `
             <div class="ms-tile">
@@ -1491,7 +1506,7 @@ function renderBookDetail(bookId) {
         }).join('');
 
         let scheduleHtml = itemLogs.filter(l => l.status !== 'completed' && l.plan_date).map(l => {
-            let d = new Date(l.plan_date);
+            let d = parseLocalDate(l.plan_date);
             return `<span class="badge-schedule">${d.getMonth()+1}/${d.getDate()}に実施予定</span>`;
         }).join(' ');
 
@@ -2181,8 +2196,8 @@ function closeCurrentWeek() {
     
     document.getElementById('plan-week-select').value = nextMondayStr;
     document.getElementById('report-week-select').value = nextMondayStr;
-    updateWeekRangeDisplay('plan', new Date(nextMondayStr));
-    updateWeekRangeDisplay('report', new Date(nextMondayStr));
+    updateWeekRangeDisplay('plan', parseLocalDate(nextMondayStr));
+    updateWeekRangeDisplay('report', parseLocalDate(nextMondayStr));
     
     checkAndGenerateDailyMissionsForWeek(nextMondayStr);
     switchPage('plan');
