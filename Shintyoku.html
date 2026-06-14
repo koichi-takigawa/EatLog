@@ -627,7 +627,7 @@ let db = {
 };
 
 const DAYS_JPN = ["月曜日", "火曜日", "水曜日", "木曜日", "金曜日", "土曜日", "日曜日"];
-const SUBJECT_SORT_ORDER = ["国語", "数学", "理科", "社会(地)", "社会(歴)", "社会(公)", "英語"];
+const SUBJECT_SORT_ORDER = ["国語", "社会(地)", "社会(歴)", "社会(公)", "数学", "理科", "英語"];
 const SUBJECT_COLORS = { "国語":"#c0392b", "数学":"#2980b9", "理科":"#27ae60", "社会(地)":"#d35400", "社会(歴)":"#e67e22", "社会(公)":"#f39c12", "英語":"#8e44ad" };
 let currentSelectedBookId = null;
 let wizardSelectedNumbers = [];
@@ -969,7 +969,25 @@ function addBook() {
 }
 function renderBookshelf() {
     const container = document.getElementById('bookshelf-container');
-    container.innerHTML = db.books.map(b => {
+
+    // 本の配列をコピーし、SUBJECT_SORT_ORDER に従って並び替える
+    const sortedBooks = [...db.books].sort((a, b) => {
+        let idxA = SUBJECT_SORT_ORDER.indexOf(a.subject);
+        let idxB = SUBJECT_SORT_ORDER.indexOf(b.subject);
+        
+        // もし SUBJECT_SORT_ORDER に定義されていない教科があった場合は末尾に配置する安全処理
+        if (idxA === -1) idxA = 999;
+        if (idxB === -1) idxB = 999;
+        
+        // 教科の順序が異なる場合は、教科順（インデックス順）でソート
+        if (idxA !== idxB) return idxA - idxB;
+        
+        // 同じ教科内の場合は、本のタイトル（title）で辞書順（五十音順）ソート
+        return a.title.localeCompare(b.title, 'ja');
+    });
+
+    // ソート済みの配列（sortedBooks）を使って画面に描画する
+    container.innerHTML = sortedBooks.map(b => {
         // 画像が設定されているかどうかで表示を切り替え
         const coverHtml = b.coverUrl 
             ? `<img src="${b.coverUrl}" class="book-cover-img" alt="${b.title}">`
