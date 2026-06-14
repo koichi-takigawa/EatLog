@@ -377,8 +377,9 @@
 <header>
     <h1>進捗管理システム v4.5</h1>
     <nav>
-        <button data-page="top" onclick="switchPage('top')">トップ・マイルストーン</button>
-        <button data-page="daily" onclick="switchPage('daily')">デイリー</button>
+        <button data-page="top" onclick="switchPage('top')">トップ</button>
+        <button data-page="milestones" onclick="switchPage('milestones')">マイルストーン</button>
+        <button data-page="daily" onclick="switchPage('daily')">デイリーミッション</button>
         <button data-page="books" onclick="switchPage('books')">本棚（編集）</button>
         <button data-page="plan" onclick="switchPage('plan')">予定設定</button>
         <button data-page="report" onclick="switchPage('report')">進捗報告</button>
@@ -395,11 +396,6 @@
     <div style="background: #eef2f5; padding: 15px; border-radius: 6px; margin-bottom: 20px;">
         <h3>直近の目標スケジュール</h3>
         <div id="top-milestone-summary-v3"></div>
-    </div>
-    
-    <div style="background:white; padding:15px; border-radius:6px; border:1px solid var(--border-color);">
-        <h3>マイルストーン 一覧</h3>
-        <ul id="top-ms-list"></ul>
     </div>
     
     <hr style="margin: 30px 0; border:0; border-top:1px solid var(--border-color);">
@@ -422,6 +418,10 @@
     </div>
     <p id="sync-status-msg" style="margin-top: 8px; font-size: 0.85rem; font-weight: bold; color: #2c3e50;"></p>
 
+</div>
+
+<div id="page-milestones" class="page">
+    <ul id="milestones-list"></ul>
     <button class="fab" onclick="showModal('modal-add-milestone')">＋</button>
 </div>
 
@@ -799,7 +799,8 @@ function switchPage(pageId, bookId = null) {
     document.getElementById(`page-${pageId}`).classList.add('active');
     updateNavButtons(pageId);
     
-    if(pageId === 'top') { updateTopMilestoneSummary(); renderTopMilestonesList(); }
+    if(pageId === 'top') { updateTopMilestoneSummary(); }
+    if(pageId === 'milestones') { renderTopMilestonesList(); }
     if(pageId === 'top') renderTodayTasks();
     if(pageId === 'daily') renderDailyMissions();
     if(pageId === 'books') renderBookshelf();
@@ -914,8 +915,13 @@ function addMilestone() {
     document.getElementById('ms-date').value = '';
 }
 function renderTopMilestonesList() {
-    const ul = document.getElementById('top-ms-list');
+    const ul = document.getElementById('milestones-list');
+    if (!ul) return;
     db.milestones.sort((a,b)=>new Date(a.date)-new Date(b.date));
+    if (db.milestones.length === 0) {
+        ul.innerHTML = '<li style="color:#7f8c8d;">マイルストーンが登録されていません。</li>';
+        return;
+    }
     ul.innerHTML = db.milestones.map(m => `<li><strong>${m.date}</strong> : ${m.title}</li>`).join('');
 }
 function updateTopMilestoneSummary() {
@@ -931,14 +937,13 @@ function updateTopMilestoneSummary() {
     
     let html = "";
     // 直近2つを表示
-    let displayCount = Math.min(2, future.length);
+    let displayCount = Math.min(4, future.length);
     for(let i=0; i<displayCount; i++) {
         let m = future[i];
         let diffTime = new Date(m.date) - today;
         let diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
         html += `
             <div class="ms-tile">
-                <span style="font-size:0.85rem; color:#7f8c8d;">直近の目標 ${i+1}</span>
                 <h3 style="margin:5px 0; color:var(--text-color);">${m.title} <span style="font-size:1.3rem; color:var(--danger-color); float:right;">あと ${diffDays} 日</span></h3>
                 <small>目標設定日: ${m.date}</small>
             </div>
