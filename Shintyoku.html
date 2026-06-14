@@ -375,6 +375,7 @@
         <button data-page="books" onclick="switchPage('books')">本棚（編集）</button>
         <button data-page="plan" onclick="switchPage('plan')">予定設定</button>
         <button data-page="report" onclick="switchPage('report')">進捗報告</button>
+        <button data-page="settings" onclick="switchPage('settings')">⚙ 設定</button>
     </nav>
 </header>
 
@@ -389,27 +390,60 @@
         <h3>直近の目標スケジュール</h3>
         <div id="top-milestone-summary-v3"></div>
     </div>
-    
-    <hr style="margin: 30px 0; border:0; border-top:1px solid var(--border-color);">
-    
-    <h3>💾 データの保存と読み込み</h3>
-    <button onclick="exportData()">データをJSONで保存</button>
-    <input type="file" id="import-file" onchange="importData(event)" style="display:none">
-    <button onclick="document.getElementById('import-file').click()">データをJSONから読み込み</button>
+</div>
 
-    <hr style="margin: 30px 0; border:0; border-top:1px solid var(--border-color);">
-
-    <h3>🌐 クラウドデータ同期 (GAS連携)</h3>
-    <div class="form-group">
-        <label>GAS Webアプリ URL</label>
-        <input type="url" id="gas-url-input" placeholder="https://script.google.com/macros/s/.../exec" style="padding: 8px; font-size: 0.9rem;">
+<div id="page-settings" class="page">
+    <div style="background: #fff; border: 1px solid var(--border-color); padding: 20px; border-radius: 8px; margin-bottom: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.02);">
+        <h3 style="margin-top: 0; color: var(--text-color); display: flex; align-items: center; gap: 8px;">💾 ローカルデータのバックアップ</h3>
+        <p style="font-size: 0.85rem; color: #7f8c8d; margin-bottom: 15px;">
+            現在の進捗状況や登録した教材、スケジュールを1つのファイル（JSON形式）としてエクスポートしたり、以前保存したバックアップから復元することができます。
+        </p>
+        
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-top: 15px;">
+            <div style="border: 1px solid #dee2e6; padding: 15px; border-radius: 6px; background-color: #fcfcfc; display: flex; flex-direction: column; justify-content: space-between;">
+                <h4 style="margin-top: 0; margin-bottom: 10px; color: #34495e;">📂 ローカルへ保管する</h4>
+                <p style="font-size: 0.8rem; color: #7f8c8d; margin-bottom: 10px;">現在の最新の進捗や教材データをファイルとしてダウンロード保存します。</p>
+                <button onclick="exportData()" style="background-color: #34495e; color: white; padding: 10px 16px; border: none; border-radius: 4px; font-weight: bold; cursor: pointer; width: 100%;">データをJSONで保存 (ダウンロード)</button>
+            </div>
+            
+            <div style="border: 1px solid #f9d5d5; padding: 15px; border-radius: 6px; background-color: #fffbfa; display: flex; flex-direction: column; justify-content: space-between;">
+                <h4 style="margin-top: 0; margin-bottom: 10px; color: #e74c3c;">📤 バックアップから復元</h4>
+                <p style="font-size: 0.8rem; color: #7f8c8d; margin-bottom: 10px;">以前保存したJSONデータファイルを選択して進捗状況を復元します。</p>
+                <input type="file" id="import-file" onchange="importData(event)" style="display:none">
+                <p style="font-size: 0.75rem; color: #e74c3c; margin-top: 8px; margin-bottom: 0; font-weight: bold;">⚠ 注意: 現在ローカル（このブラウザ）にあるデータは消失します。</p>
+                <button onclick="document.getElementById('import-file').click()" style="background-color: #e74c3c; color: white; padding: 10px 16px; border: none; border-radius: 4px; font-weight: bold; cursor: pointer; width: 100%;">データをJSONから読み込み (復元)</button>
+            </div>
+        </div>
     </div>
-    <div style="display: flex; gap: 10px;">
-        <button onclick="syncDownload()">クラウドからデータ取得 (未保存は上書きされます)</button>
-        <button onclick="syncUpload()">現在の進捗をクラウドへ保存</button>
-    </div>
-    <p id="sync-status-msg" style="margin-top: 8px; font-size: 0.85rem; font-weight: bold; color: #2c3e50;"></p>
 
+    <div style="background: #fff; border: 1px solid var(--border-color); padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.02);">
+        <h3 style="margin-top: 0; color: var(--text-color); display: flex; align-items: center; gap: 8px;">🌐 クラウドデータ同期 (GAS連携)</h3>
+        <p style="font-size: 0.85rem; color: #7f8c8d; margin-bottom: 15px;">
+            Google Apps Script (GAS) Webアプリを利用して、進捗データをクラウド上のスプレッドシート等に保存・復元します。スマートフォンの買い替えや複数ブラウザ間の共有に便利です。
+        </p>
+        
+        <div class="form-group" style="margin-bottom: 20px;">
+            <label style="font-weight: bold; font-size: 0.9rem; color: var(--text-color);">GAS Webアプリ URL</label>
+            <input type="url" id="gas-url-input" placeholder="https://script.google.com/macros/s/.../exec" style="padding: 10px; font-size: 0.95rem; width: 100%; border: 1px solid var(--border-color); border-radius: 6px; box-sizing: border-box;">
+        </div>
+        
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-top: 15px;">
+            <div style="border: 1px solid #dee2e6; padding: 15px; border-radius: 6px; background-color: #fcfcfc; display: flex; flex-direction: column; justify-content: space-between;">
+                <h4 style="margin-top: 0; margin-bottom: 10px; color: var(--success-color);">☁ クラウドへ保管する</h4>
+                <p style="font-size: 0.8rem; color: #7f8c8d; margin-bottom: 10px;">現在の最新の進捗状態をクラウドに送信して安全に保存します。</p>
+                <button onclick="syncUpload()" style="background-color: var(--success-color); color: white; padding: 10px 16px; border: none; border-radius: 4px; font-weight: bold; cursor: pointer; width: 100%;">クラウドへ最新状態を保存</button>
+            </div>
+            
+            <div style="border: 1px solid #f9d5d5; padding: 15px; border-radius: 6px; background-color: #fffbfa; display: flex; flex-direction: column; justify-content: space-between;">
+                <h4 style="margin-top: 0; margin-bottom: 10px; color: var(--danger-color);">☁ クラウドから同期(復元)</h4>
+                <p style="font-size: 0.8rem; color: #7f8c8d; margin-bottom: 10px;">クラウドからデータを同期して現在の状態を上書きします。</p>
+                <p style="font-size: 0.75rem; color: #e74c3c; margin-top: 8px; margin-bottom: 0; font-weight: bold;">⚠ 注意: 現在ローカル（このブラウザ）にあるデータは消失します。</p>
+                <button onclick="syncDownload()" style="background-color: var(--danger-color); color: white; padding: 10px 16px; border: none; border-radius: 4px; font-weight: bold; cursor: pointer; width: 100%;">クラウドからデータダウンロード</button>
+            </div>
+        </div>
+        
+        <p id="sync-status-msg" style="margin-top: 15px; font-size: 0.9rem; font-weight: bold; color: #2c3e50; text-align: center; padding: 12px; background-color: #f8f9fa; border-radius: 6px; border: 1px dashed #ced4da; min-height: 20px;"></p>
+    </div>
 </div>
 
 <div id="page-milestones" class="page">
@@ -961,9 +995,22 @@ function exportData() {
     a.setAttribute("download", `study_v4_4_backup.json`); a.click();
 }
 function importData(event) {
+    if (!confirm("本当に選択したファイルからデータを読み込みますか？\n現在のすべての教材・スケジュール・進捗状況が消去され、ファイルの内容で完全に上書きされます。")) {
+        event.target.value = ''; // ファイル選択をリセット
+        return;
+    }
     const reader = new FileReader();
     reader.onload = function() {
-        try { db = JSON.parse(reader.result); saveDB(); alert("読込完了"); switchPage('top'); } catch(e){ alert("失敗"); }
+        try { 
+            db = JSON.parse(reader.result); 
+            saveDB(); 
+            alert("バックアップからデータを正常に読み込みました。トップ画面に移動します。"); 
+            switchPage('top'); 
+        } catch(e) { 
+            alert("読み込みに失敗しました。ファイル形式が正しいJSONデータか確認してください。"); 
+        } finally {
+            event.target.value = ''; // ファイル選択をリセット
+        }
     };
     reader.readAsText(event.target.files[0]);
 }
