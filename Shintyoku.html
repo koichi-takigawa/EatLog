@@ -159,9 +159,6 @@
             justify-content: space-between;
             align-items: center;
         }
-        .kanban-group-header button {
-            font-size: 0.7rem; padding: 1px 4px; cursor: pointer;
-        }
 
         .task-card {
             background: var(--card-bg);
@@ -617,22 +614,6 @@
         <button onclick="submitProgressReport()" style="background:var(--primary-color); color:white; padding:10px 20px; border:none; border-radius:4px; font-weight:bold; cursor:pointer;">報告を保存</button> 
         <button onclick="closeAllModals()" style="background:#bdc3c7; color:white; padding:10px 15px; border:none; border-radius:4px; cursor:pointer; margin-left:5px;">キャンセル</button>
     </div>
-</div>
-
-<div id="modal-group-move" class="modal">
-    <h3>グループ一括曜日移動</h3>
-    <p id="group-move-desc"></p>
-    <input type="hidden" id="move-src-date">
-    <input type="hidden" id="move-group-key">
-    <div class="form-group">
-        <label>移動先の曜日</label>
-        <select id="move-target-day">
-            <option value="0">月曜日</option><option value="1">火曜日</option><option value="2">水曜日</option>
-            <option value="3">木曜日</option><option value="4">金曜日</option><option value="5">土曜日</option>
-            <option value="6">日曜日</option>
-        </select>
-    </div>
-    <button onclick="executeGroupMove()">移動する</button> <button onclick="closeAllModals()">キャンセル</button>
 </div>
 
 <script>
@@ -1327,11 +1308,17 @@ function renderKanbanFlow(boardId, mondayStr, editable) {
             const gEl = document.createElement('div');
             gEl.className = 'kanban-group';
             
-            let btnHtml = '';
             if(editable && key !== 'daily') {
-                btnHtml = `<button onclick="openGroupMoveModal('${currentDayStr}', '${key}', '${g.name}')">一括移動</button>`;
+                gEl.draggable = true;
+                gEl.ondragstart = (e) => {
+                    // グループ全体の移動であることを識別するために prefix 'group:' を付与
+                    e.dataTransfer.setData("text", `group:${currentDayStr}:${key}`);
+                };
+                // ドラッグ中と分かるようにスタイルクラスをトグルする
+                gEl.style.cursor = 'grab';
             }
-            gEl.innerHTML = `<div class="kanban-group-header"><span>${g.name}</span>${btnHtml}</div>`;
+
+            gEl.innerHTML = `<div class="kanban-group-header"><span>${g.name}</span></div>`;
             
             g.tasks.forEach(t => {
                 const card = document.createElement('div');
@@ -1347,7 +1334,11 @@ function renderKanbanFlow(boardId, mondayStr, editable) {
                     card.innerHTML = `${t.itemNumber}`;
                     if(editable && t.status !== 'completed') {
                         card.draggable = true; 
-                        card.ondragstart = (e) => e.dataTransfer.setData("text", t.id);
+                        card.ondragstart = (e) => {
+                            // 子要素のドラッグイベントが親（グループ）に伝播するのを防ぐ
+                            e.stopPropagation();
+                            e.dataTransfer.setData("text", t.id);
+                        };
                     }
                     if(!editable) card.onclick = () => openProgressReportModal(t);
                 }
@@ -1362,38 +1353,53 @@ function renderKanbanFlow(boardId, mondayStr, editable) {
 function allowDrop(ev) { ev.preventDefault(); }
 function drop(ev, targetDayIdx, mondayStr, boardId) {
     ev.preventDefault();
-    const logId = ev.dataTransfer.getData("text");
-    if(!logId) return;
-    const log = db.progressLogs.find(l => l.id === logId);
-    if(log) {
-        log.plan_date = addDays(mondayStr, targetDayIdx);
+    const dragData = ev.dataTransfer.getData("text");
+    if (!dragData) return;
+
+    // 移動先の日付文字列を計算
+    const targetDateStr = addDays(mondayStr, targetDayIdx);
+
+    // グループ一括曜日移動の処理
+    if (dragData.startsWith("group:")) {
+        // "group:2026-06-15:国語_book_123" 形式の文字列を分解
+        const parts = dragData.split(":");
+        const srcDate = parts[1];
+        const gKey = parts[2];
+
+        // 移動元と移動先が同じ日付なら処理をスキップ
+        if (srcDate === targetDateStr) return;
+
+        // 全ての進捗ログから、対象日かつ同じグループの未完了タスクをすべて書き換える
+        db.progressLogs.forEach(l => {
+            if (l.plan_date === srcDate && l.type === 'book') {
+                const book = db.books.find(b => b.id === l.bookId);
+                const key = book ? `${book.subject}_${l.bookId}` : 'unknown';
+
+                // 未完了のタスクのみ、新しい予定日に変更
+                if (key === gKey && l.status !== 'completed') {
+                    l.plan_date = targetDateStr;
+                }
+            }
+        });
+
+        // データの保存と画面の再描画
         saveDB();
-        if(boardId === 'plan-kanban-board') loadWeeklyPlanKanban();
+        if (boardId === 'plan-kanban-board') loadWeeklyPlanKanban();
+        else loadReportKanban();
+        
+        // グループ処理が終わったらここで関数を抜ける
+        return;
+    }
+
+    // 単一タスクカード移動の処理
+    const logId = dragData; // 分かりやすいように変数名を対応
+    const log = db.progressLogs.find(l => l.id === logId);
+    if (log) {
+        log.plan_date = targetDateStr;
+        saveDB();
+        if (boardId === 'plan-kanban-board') loadWeeklyPlanKanban();
         else loadReportKanban();
     }
-}
-
-function openGroupMoveModal(srcDate, groupKey, groupName) {
-    document.getElementById('group-move-desc').innerText = `${groupName} をまとめて移動します。`;
-    document.getElementById('move-src-date').value = srcDate;
-    document.getElementById('move-group-key').value = groupKey;
-    showModal('modal-group-move');
-}
-function executeGroupMove() {
-    const mondayStr = document.getElementById('plan-week-select').value;
-    const srcDate = document.getElementById('move-src-date').value;
-    const gKey = document.getElementById('move-group-key').value;
-    const targetDayIdx = parseInt(document.getElementById('move-target-day').value);
-    let targetDateStr = addDays(mondayStr, targetDayIdx);
-
-    db.progressLogs.forEach(l => {
-        if(l.plan_date === srcDate && l.type === 'book') {
-            const book = db.books.find(b => b.id === l.bookId);
-            const key = book ? `${book.subject}_${book.id}` : 'unknown';
-            if(key === gKey && l.status !== 'completed') l.plan_date = targetDateStr;
-        }
-    });
-    saveDB(); closeAllModals(); loadWeeklyPlanKanban();
 }
 
 // --- 予定追加ウィザード ---
