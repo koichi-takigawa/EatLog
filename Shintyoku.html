@@ -807,7 +807,7 @@ function renderPlanWeeklySummary() {
     });
     
     let html = `
-        <h4 style="margin-top: 0; margin-bottom: 12px; color: #34495e; border-bottom: 1px solid #eee; padding-bottom: 8px; font-size: 0.95rem;">📖 今週の予定内訳</h4>
+        <h4 style="margin-top: 0; margin-bottom: 12px; color: #34495e; border-bottom: 1px solid #eee; padding-bottom: 8px; font-size: 0.95rem;">📖 予定内訳</h4>
         <div style="display: flex; flex-direction: column; gap: 8px;">
     `;
     
@@ -887,9 +887,9 @@ function renderReportWeeklySummary() {
                     <span style="position: absolute; font-size: 1rem; font-weight: bold; color: #2c3e50;">${overallPercent}%</span>
                 </div>
                 <div style="flex: 1; min-width: 150px;">
-                    <h3 style="margin: 0 0 5px 0; font-size: 1.05rem; color: #2c3e50;">📊 今週の全体の進捗</h3>
+                    <h3 style="margin: 0 0 5px 0; font-size: 1.05rem; color: #2c3e50;">📊 全体の進捗</h3>
                     <p style="margin: 0; font-size: 0.85rem; color: #7f8c8d;">
-                        今週の本の予定: <strong>${total}</strong> 件 / 完了: <strong style="color:var(--success-color);">${completed}</strong> 件 (${overallPercent}%)
+                        本の予定: <strong>${total}</strong> 件 / 完了: <strong style="color:var(--success-color);">${completed}</strong> 件 (${overallPercent}%)
                     </p>
                 </div>
             </div>
@@ -960,7 +960,7 @@ function renderReportWeeklySummary() {
     // Daily missions breakdown
     html += `
         <div style="margin-top: 10px;">
-            <h4 style="margin-top: 0; margin-bottom: 12px; color: #34495e; border-bottom: 1px solid #eee; padding-bottom: 8px; font-size: 0.95rem;">☀️ 今週のデイリーミッション達成状況</h4>
+            <h4 style="margin-top: 0; margin-bottom: 12px; color: #34495e; border-bottom: 1px solid #eee; padding-bottom: 8px; font-size: 0.95rem;">☀️ デイリーミッション達成状況</h4>
     `;
     
     if (!db.dailyMissions || db.dailyMissions.length === 0) {
