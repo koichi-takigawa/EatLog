@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>勉強進捗管理アプリ v4.4</title>
+    <title>勉強進捗管理アプリ v4.5</title>
     <style>
         :root {
             --bg-color: #f8f9fa;
@@ -27,12 +27,16 @@
             justify-content: space-between;
             align-items: center;
             border-bottom: 2px solid var(--border-color);
-            padding-bottom: 0px;
+            padding: 4px 0 0;
             margin-bottom: 10px;
+        }
+        header h1 {
+            font-size: 1.1rem;
+            margin: 0;
         }
         nav button {
             margin-left: 5px;
-            padding: 9px 14px 11px;
+            padding: 6px 12px 8px;
             cursor: pointer;
             color: #6b7280;
             background-color: transparent;
@@ -371,7 +375,7 @@
 <body>
 
 <header>
-    <h1>進捗管理システム v4.4</h1>
+    <h1>進捗管理システム v4.5</h1>
     <nav>
         <button data-page="top" onclick="switchPage('top')">トップ・マイルストーン</button>
         <button data-page="daily" onclick="switchPage('daily')">デイリー</button>
@@ -384,13 +388,17 @@
 <div id="modal-backdrop" class="modal-backdrop" onclick="closeAllModals()"></div>
 
 <div id="page-top" class="page active">
+    <div style="background: #f1f3f5; border: 1px solid #d7dde4; padding: 15px; border-radius: 6px; margin-bottom: 20px;">
+        <h3 style="margin-top:0; margin-bottom:10px;">📋 本日のタスク</h3>
+        <div id="today-tasks-container"></div>
+    </div>
     <div style="background: #eef2f5; padding: 15px; border-radius: 6px; margin-bottom: 20px;">
         <h3>直近の目標スケジュール</h3>
         <div id="top-milestone-summary-v3"></div>
     </div>
     
     <div style="background:white; padding:15px; border-radius:6px; border:1px solid var(--border-color);">
-        <h3>登録済みマイルストーンマスター 一覧</h3>
+        <h3>マイルストーン 一覧</h3>
         <ul id="top-ms-list"></ul>
     </div>
     
@@ -616,7 +624,7 @@
 </div>
 
 <script>
-// --- データ構造マスター (v4.4 正規化版) ---
+// --- データ構造マスター (v4.5 正規化版) ---
 let db = {
     books: [],
     dailyMissions: [],
@@ -634,6 +642,7 @@ let bulkSelectedNumbers = [];
 
 let selectedStatusValue = "unstarted";
 let selectedLevelValue = "◎";
+let todayTasksList = [];
 
 // --- ヘルパー関数: 圧縮文字列と配列の相互変換 ---
 function parseRangeStr(rangeStr) {
@@ -791,6 +800,7 @@ function switchPage(pageId, bookId = null) {
     updateNavButtons(pageId);
     
     if(pageId === 'top') { updateTopMilestoneSummary(); renderTopMilestonesList(); }
+    if(pageId === 'top') renderTodayTasks();
     if(pageId === 'daily') renderDailyMissions();
     if(pageId === 'books') renderBookshelf();
     if(pageId === 'book-detail' && bookId) { currentSelectedBookId = bookId; renderBookDetail(bookId); }
@@ -1610,7 +1620,120 @@ function submitProgressReport() {
             }
         }
     }
-    saveDB(); closeAllModals(); loadReportKanban();
+    saveDB(); closeAllModals(); loadReportKanban(); renderTodayTasks();
+}
+
+// --- 本日のタスク表示 ---
+function renderTodayTasks() {
+    const container = document.getElementById('today-tasks-container');
+    if (!container) return;
+    const todayStr = formatDateString(new Date());
+    todayTasksList = [];
+
+    // 前日までの未実施（book のみ）
+    const overdueLogs = db.progressLogs.filter(l =>
+        l.type === 'book' && l.plan_date < todayStr && l.status !== 'completed'
+    ).sort((a, b) => a.plan_date.localeCompare(b.plan_date));
+
+    // 本日の未実施 book
+    const todayBookLogs = db.progressLogs.filter(l =>
+        l.type === 'book' && l.plan_date === todayStr && l.status !== 'completed'
+    );
+
+    // 本日の未実施 daily
+    const todayDailyProg = db.dailyProgresses.find(dp => dp.date === todayStr);
+    const todayDailyTasks = [];
+    if (todayDailyProg) {
+        todayDailyProg.items.forEach(it => {
+            if (it.status !== 'completed') {
+                todayDailyTasks.push({ type: 'daily', dailyId: it.dailyId, status: it.status, date: todayStr });
+            }
+        });
+    }
+
+    function buildTaskGroups(tasks, includeDaily) {
+        const groups = {};
+
+        if (includeDaily && todayDailyTasks.length > 0) {
+            groups.daily = {
+                subject: '',
+                title: 'デイリーミッション',
+                tasks: [...todayDailyTasks]
+            };
+        }
+
+        tasks.forEach(task => {
+            const book = db.books.find(b => b.id === task.bookId);
+            const key = book ? `${book.subject}_${book.id}` : 'unknown';
+            if (!groups[key]) {
+                groups[key] = {
+                    subject: book ? book.subject : '',
+                    title: book ? book.title : '不明',
+                    tasks: []
+                };
+            }
+            groups[key].tasks.push(task);
+        });
+
+        const keys = Object.keys(groups);
+        keys.sort((a, b) => {
+            if (a === 'daily') return -1;
+            if (b === 'daily') return 1;
+            const idxA = SUBJECT_SORT_ORDER.indexOf(groups[a].subject);
+            const idxB = SUBJECT_SORT_ORDER.indexOf(groups[b].subject);
+            const safeA = idxA === -1 ? 999 : idxA;
+            const safeB = idxB === -1 ? 999 : idxB;
+            if (safeA !== safeB) return safeA - safeB;
+            return groups[a].title.localeCompare(groups[b].title, 'ja');
+        });
+
+        return keys.map(key => ({ key, ...groups[key] }));
+    }
+
+    function renderTaskSection(title, titleColor, groups) {
+        if (groups.length === 0) return '';
+
+        let sectionHtml = `<div style="margin-bottom:14px;">
+            <strong style="font-size:0.9rem; color:${titleColor};">${title}</strong>
+            <div style="display:grid; gap:8px; margin-top:8px;">`;
+
+        groups.forEach(group => {
+            const badgeHtml = group.subject
+                ? `<span class="kanban-group-badge" style="background-color:${SUBJECT_COLORS[group.subject] || '#7f8c8d'}">${group.subject}</span>`
+                : '';
+
+            sectionHtml += `<div class="kanban-group" style="margin-bottom:0;">
+                <div class="kanban-group-header">${badgeHtml}<span>${group.title}</span></div>
+                <div style="display:flex; flex-wrap:wrap; gap:6px;">`;
+
+            group.tasks.forEach(task => {
+                const idx = todayTasksList.push(task) - 1;
+                if (task.type === 'daily') {
+                    const mission = db.dailyMissions.find(dm => dm.id === task.dailyId);
+                    sectionHtml += `<div class="task-card daily ${task.status}" onclick="openProgressReportModal(todayTasksList[${idx}])" style="margin-bottom:0; padding:6px 10px; cursor:pointer; border-bottom-width:4px;">${mission ? mission.name : '日課'}</div>`;
+                } else {
+                    sectionHtml += `<div class="task-card book ${task.status}" onclick="openProgressReportModal(todayTasksList[${idx}])" style="margin-bottom:0; cursor:pointer; border-bottom-width:4px;">${task.itemNumber}</div>`;
+                }
+            });
+
+            sectionHtml += `</div></div>`;
+        });
+
+        sectionHtml += `</div></div>`;
+        return sectionHtml;
+    }
+
+    const overdueGroups = buildTaskGroups(overdueLogs, false);
+    const todayGroups = buildTaskGroups(todayBookLogs, true);
+
+    let html = '';
+    html += renderTaskSection('⚠ 前日までの未実施', '#c0392b', overdueGroups);
+    html += renderTaskSection('📅 本日の未実施', '#2980b9', todayGroups);
+
+    if (!html) {
+        html = '<span style="color:#7f8c8d; font-size:0.9rem;">未実施の項目はありません 🎉</span>';
+    }
+    container.innerHTML = html;
 }
 
 function closeCurrentWeek() {
@@ -1651,7 +1774,7 @@ function closeCurrentWeek() {
     switchPage('plan');
 }
 
-// --- GAS クラウド同期ロジック (v4.4 手動実行専用版) ---
+// --- GAS クラウド同期ロジック (v4.5 手動実行専用版) ---
 
 // 1. クラウドへ現在のデータを送信（保存）
 async function syncUpload() {
@@ -1743,6 +1866,7 @@ window.onload = function() {
     loadGasUrlOnly();
     updateNavButtons('top');
     renderTopMilestonesList(); 
+    renderTodayTasks();
 };
 </script>
 </body>
