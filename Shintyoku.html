@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
@@ -382,6 +382,7 @@
 <div id="modal-backdrop" class="modal-backdrop" onclick="closeAllModals()"></div>
 
 <div id="page-top" class="page active">
+    <div style="background: #fff; border: 1px solid var(--border-color); padding: 15px; border-radius: 6px; margin-bottom: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.02);" id="top-weekly-progress-section"></div>
     <div style="background: #f1f3f5; border: 1px solid #d7dde4; padding: 15px; border-radius: 6px; margin-bottom: 20px;">
         <h3 style="margin-top:0; margin-bottom:10px;">📋 本日のタスク</h3>
         <div id="today-tasks-container"></div>
@@ -477,6 +478,7 @@
         <div id="plan-week-display" class="week-range-title" onclick="openWeekSelectModal('plan')"></div>
         <input type="hidden" id="plan-week-select">
     </div>
+    <div id="plan-weekly-summary-section" style="background: #fff; border: 1px solid var(--border-color); padding: 15px; border-radius: 6px; margin-bottom: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.02); display: none;"></div>
     <div class="kanban-board" id="plan-kanban-board"></div>
     <button class="fab" onclick="openAddPlanWizard()">＋</button>
 </div>
@@ -487,6 +489,7 @@
         <button onclick="closeCurrentWeek()" style="background:var(--danger-color); color:white; padding:10px 16px; border:none; border-radius:4px; cursor:pointer; font-weight:bold; white-space: nowrap;">この週を終了する</button>
         <input type="hidden" id="report-week-select">
     </div>
+    <div id="report-weekly-summary-section" style="background: #fff; border: 1px solid var(--border-color); padding: 20px; border-radius: 8px; margin-bottom: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.02);"></div>
     <div class="kanban-board report-board" id="report-kanban-board"></div>
 </div>
 
@@ -672,6 +675,7 @@ let db = {
 };
 
 const DAYS_JPN = ["月曜日", "火曜日", "水曜日", "木曜日", "金曜日", "土曜日", "日曜日"];
+const DAYS_JPN_SHORT = ["月", "火", "水", "木", "金", "土", "日"];
 const SUBJECT_SORT_ORDER = ["国語", "社会(地)", "社会(歴)", "社会(公)", "数学", "理科", "英語"];
 const SUBJECT_COLORS = { "国語":"#c0392b", "数学":"#2980b9", "理科":"#27ae60", "社会(地)":"#d35400", "社会(歴)":"#e67e22", "社会(公)":"#f39c12", "英語":"#8e44ad" };
 let currentSelectedBookId = null;
@@ -681,6 +685,343 @@ let bulkSelectedNumbers = [];
 let selectedStatusValue = "unstarted";
 let selectedLevelValue = "◎";
 let todayTasksList = [];
+
+function formatRanges(nums) {
+    if (!nums || nums.length === 0) return "";
+    const uniqueNums = [...new Set(nums)].map(Number).sort((a, b) => a - b);
+    let ranges = [];
+    let start = uniqueNums[0];
+    let end = uniqueNums[0];
+    for (let i = 1; i < uniqueNums.length; i++) {
+        if (uniqueNums[i] === end + 1) {
+            end = uniqueNums[i];
+        } else {
+            if (start === end) {
+                ranges.push(`${start}`);
+            } else {
+                ranges.push(`${start}～${end}`);
+            }
+            start = uniqueNums[i];
+            end = uniqueNums[i];
+        }
+    }
+    if (start === end) {
+        ranges.push(`${start}`);
+    } else {
+        ranges.push(`${start}～${end}`);
+    }
+    return ranges.join(", ");
+}
+
+function getWeeklyProgressData(mondayDate) {
+    if (!mondayDate) {
+        mondayDate = getMonday(new Date());
+    }
+    const mondayStr = formatDateString(mondayDate);
+    const sundayStr = addDays(mondayStr, 6);
+    
+    // Books scheduled this week
+    const weeklyBookLogs = db.progressLogs.filter(l => l.type === 'book' && l.plan_date >= mondayStr && l.plan_date <= sundayStr);
+    const total = weeklyBookLogs.length;
+    const completed = weeklyBookLogs.filter(l => l.status === 'completed').length;
+    const percent = total > 0 ? Math.round((completed / total) * 100) : 0;
+    
+    return { total, completed, percent };
+}
+
+function renderTopWeeklyProgress() {
+    const progressSection = document.getElementById('top-weekly-progress-section');
+    if (!progressSection) return;
+    
+    const today = new Date();
+    const monday = getMonday(today);
+    const progress = getWeeklyProgressData(monday);
+    
+    // circle parameters
+    const radius = 30;
+    const circumference = 2 * Math.PI * radius;
+    const strokeDashoffset = circumference - (progress.percent / 100) * circumference;
+    
+    const weekStartMonth = monday.getMonth() + 1;
+    const weekStartDate = monday.getDate();
+    const sunday = new Date(monday);
+    sunday.setDate(monday.getDate() + 6);
+    const weekEndMonth = sunday.getMonth() + 1;
+    const weekEndDate = sunday.getDate();
+    
+    let html = `
+        <h3 style="margin-top: 0; margin-bottom: 12px; font-size: 1rem; color: #2c3e50; display: flex; align-items: center; gap: 6px;">
+            📈 今週の全体進捗 (${weekStartMonth}/${weekStartDate}～${weekEndMonth}/${weekEndDate})
+        </h3>
+        <div style="display: flex; align-items: center; gap: 20px; flex-wrap: wrap;">
+            <div style="position: relative; width: 75px; height: 75px; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+                <svg width="75" height="75" viewBox="0 0 75 75" style="transform: rotate(-90deg);">
+                    <!-- Background Circle -->
+                    <circle cx="37.5" cy="37.5" r="${radius}" fill="none" stroke="#f1f3f5" stroke-width="8" />
+                    <!-- Progress Circle -->
+                    <circle cx="37.5" cy="37.5" r="${radius}" fill="none" stroke="var(--success-color)" stroke-width="8" 
+                        stroke-linecap="round"
+                        stroke-dasharray="${circumference}"
+                        stroke-dashoffset="${strokeDashoffset}"
+                        style="transition: stroke-dashoffset 0.5s ease-in-out;" />
+                </svg>
+                <div style="position: absolute; display: flex; flex-direction: column; align-items: center; justify-content: center;">
+                    <span style="font-size: 1.15rem; font-weight: bold; color: #2c3e50; line-height: 1;">${progress.percent}%</span>
+                </div>
+            </div>
+            <div style="flex: 1; min-width: 180px;">
+                <p style="margin: 0 0 4px 0; font-size: 0.95rem; font-weight: bold; color: #2c3e50;">
+                    ${progress.total > 0 ? `教材学習の完了率: ${progress.percent}%` : '今週の本の予定はありません。'}
+                </p>
+                <p style="margin: 0; font-size: 0.8rem; color: #7f8c8d;">
+                    今週の予定数: <strong>${progress.total}</strong> 件 / 完了: <strong style="color: var(--success-color);">${progress.completed}</strong> 件
+                </p>
+            </div>
+        </div>
+    `;
+    progressSection.innerHTML = html;
+}
+
+function renderPlanWeeklySummary() {
+    const mondayStr = document.getElementById('plan-week-select').value;
+    const summaryContainer = document.getElementById('plan-weekly-summary-section');
+    if (!summaryContainer || !mondayStr) return;
+    
+    let sundayStr = addDays(mondayStr, 6);
+    let weeklyBookLogs = db.progressLogs.filter(l => l.type === 'book' && l.plan_date >= mondayStr && l.plan_date <= sundayStr);
+    
+    if (weeklyBookLogs.length === 0) {
+        summaryContainer.style.display = 'none';
+        return;
+    }
+    
+    summaryContainer.style.display = 'block';
+    
+    // Group by book
+    let bookMap = {};
+    weeklyBookLogs.forEach(l => {
+        if (!bookMap[l.bookId]) {
+            bookMap[l.bookId] = [];
+        }
+        bookMap[l.bookId].push(l.itemNumber);
+    });
+    
+    let html = `
+        <h4 style="margin-top: 0; margin-bottom: 12px; color: #34495e; border-bottom: 1px solid #eee; padding-bottom: 8px; font-size: 0.95rem;">📖 今週の予定内訳</h4>
+        <div style="display: flex; flex-direction: column; gap: 8px;">
+    `;
+    
+    // Sort books based on SUBJECT_SORT_ORDER and title
+    let sortedBookIds = Object.keys(bookMap).sort((a, b) => {
+        const bookA = db.books.find(x => x.id === a);
+        const bookB = db.books.find(x => x.id === b);
+        if (!bookA) return 1;
+        if (!bookB) return -1;
+        let idxA = SUBJECT_SORT_ORDER.indexOf(bookA.subject);
+        let idxB = SUBJECT_SORT_ORDER.indexOf(bookB.subject);
+        if (idxA !== idxB) return idxA - idxB;
+        return bookA.title.localeCompare(bookB.title, 'ja');
+    });
+    
+    sortedBookIds.forEach(bookId => {
+        const book = db.books.find(x => x.id === bookId);
+        if (!book) return;
+        
+        const nums = bookMap[bookId];
+        const formatted = formatRanges(nums);
+        const count = nums.length;
+        
+        html += `
+            <div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.85rem; padding: 4px 0; border-bottom: 1px dashed #f1f3f5;">
+                <span style="font-weight: 500; display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                    <span class="subject-badge" style="background-color:${SUBJECT_COLORS[book.subject] || '#7f8c8d'}; margin: 0; font-size: 0.75rem; padding: 2px 6px;">${book.subject}</span>
+                    <span style="color: #2c3e50;">${book.title}</span>
+                </span>
+                <span style="font-family: var(--font-mono); color: #34495e; font-weight: bold;">
+                    ${formatted}ページ (計 ${count}ページ)
+                </span>
+            </div>
+        `;
+    });
+    
+    html += `</div>`;
+    summaryContainer.innerHTML = html;
+}
+
+function renderReportWeeklySummary() {
+    const mondayStr = document.getElementById('report-week-select').value;
+    const summaryContainer = document.getElementById('report-weekly-summary-section');
+    if (!summaryContainer || !mondayStr) return;
+    
+    let sundayStr = addDays(mondayStr, 6);
+    let weeklyBookLogs = db.progressLogs.filter(l => l.type === 'book' && l.plan_date >= mondayStr && l.plan_date <= sundayStr);
+    
+    // Overall calculations
+    const total = weeklyBookLogs.length;
+    const completed = weeklyBookLogs.filter(l => l.status === 'completed').length;
+    const overallPercent = total > 0 ? Math.round((completed / total) * 100) : 0;
+    
+    // Group book items
+    let bookMap = {};
+    weeklyBookLogs.forEach(l => {
+        if (!bookMap[l.bookId]) {
+            bookMap[l.bookId] = [];
+        }
+        bookMap[l.bookId].push(l);
+    });
+    
+    // Generate overall stats visual (Gauge & Stats)
+    let html = `
+        <div style="display: flex; flex-direction: column; gap: 20px;">
+            <!-- Overall Progress Box -->
+            <div style="background: #fdfdfd; border: 1px solid #eef2f5; padding: 15px; border-radius: 6px; display: flex; align-items: center; gap: 20px; flex-wrap: wrap;">
+                <div style="position: relative; width: 70px; height: 70px; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+                    <svg width="70" height="70" viewBox="0 0 70 70" style="transform: rotate(-90deg);">
+                        <circle cx="35" cy="35" r="28" fill="none" stroke="#f1f3f5" stroke-width="8" />
+                        <circle cx="35" cy="35" r="28" fill="none" stroke="var(--success-color)" stroke-width="8" 
+                            stroke-linecap="round"
+                            stroke-dasharray="175.9"
+                            stroke-dashoffset="${175.9 - (overallPercent / 100) * 175.9}"
+                            style="transition: stroke-dashoffset 0.5s ease-in-out;" />
+                    </svg>
+                    <span style="position: absolute; font-size: 1rem; font-weight: bold; color: #2c3e50;">${overallPercent}%</span>
+                </div>
+                <div style="flex: 1; min-width: 150px;">
+                    <h3 style="margin: 0 0 5px 0; font-size: 1.05rem; color: #2c3e50;">📊 今週の全体の進捗</h3>
+                    <p style="margin: 0; font-size: 0.85rem; color: #7f8c8d;">
+                        今週の本の予定: <strong>${total}</strong> 件 / 完了: <strong style="color:var(--success-color);">${completed}</strong> 件 (${overallPercent}%)
+                    </p>
+                </div>
+            </div>
+    `;
+    
+    // Books breakdown
+    html += `
+        <div>
+            <h4 style="margin-top: 0; margin-bottom: 12px; color: #34495e; border-bottom: 1px solid #eee; padding-bottom: 8px; font-size: 0.95rem;">📖 教材ごとの進捗内訳</h4>
+    `;
+    
+    if (total === 0) {
+        html += `<p style="font-size: 0.85rem; color: #95a5a6; margin: 0;">今週は教材の予定がありません。</p>`;
+    } else {
+        html += `<div style="display: flex; flex-direction: column; gap: 12px;">`;
+        
+        let sortedBookIds = Object.keys(bookMap).sort((a, b) => {
+            const bookA = db.books.find(x => x.id === a);
+            const bookB = db.books.find(x => x.id === b);
+            if (!bookA) return 1;
+            if (!bookB) return -1;
+            let idxA = SUBJECT_SORT_ORDER.indexOf(bookA.subject);
+            let idxB = SUBJECT_SORT_ORDER.indexOf(bookB.subject);
+            if (idxA !== idxB) return idxA - idxB;
+            return bookA.title.localeCompare(bookB.title, 'ja');
+        });
+        
+        sortedBookIds.forEach(bookId => {
+            const book = db.books.find(x => x.id === bookId);
+            if (!book) return;
+            
+            const logs = bookMap[bookId];
+            const nums = logs.map(l => l.itemNumber);
+            const formatted = formatRanges(nums);
+            const count = nums.length;
+            
+            // Calculate completed items for this book
+            const completedCount = logs.filter(l => l.status === 'completed').length;
+            const bookPercent = count > 0 ? Math.round((completedCount / count) * 100) : 0;
+            
+            html += `
+                <div style="background: #fcfcfc; border: 1px solid #f1f3f5; padding: 10px 12px; border-radius: 6px; display: flex; align-items: center; justify-content: space-between; gap: 15px; flex-wrap: wrap;">
+                    <span style="font-weight: bold; font-size: 0.85rem; display: flex; align-items: center; gap: 8px; flex: 1; min-width: 200px;">
+                        <span class="subject-badge" style="background-color:${SUBJECT_COLORS[book.subject] || '#7f8c8d'}; margin: 0; font-size: 0.75rem; padding: 2px 6px; flex-shrink: 0;">${book.subject}</span>
+                        <span style="color: #2c3e50; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${book.title}">${book.title}</span>
+                    </span>
+                    
+                    <span style="font-size: 0.8rem; color: #7f8c8d; font-family: var(--font-mono); font-weight: bold; min-width: 140px;">
+                        ${formatted}ページ (計 ${count}ページ)
+                    </span>
+                    
+                    <div style="display: flex; align-items: center; gap: 10px; font-size: 0.8rem; flex-shrink: 0; min-width: 210px; justify-content: flex-end;">
+                        <div style="width: 100px; background-color: #f1f3f5; border-radius: 4px; height: 8px; overflow: hidden; flex-shrink: 0;">
+                            <div style="width: ${bookPercent}%; background-color: var(--primary-color); height: 100%; transition: width 0.3s ease;"></div>
+                        </div>
+                        <span style="font-weight: bold; color: #34495e; font-family: var(--font-mono); white-space: nowrap; text-align: right; width: 90px;">
+                            ${completedCount} / ${count}済 (${bookPercent}%)
+                        </span>
+                    </div>
+                </div>
+            `;
+        });
+        
+        html += `</div>`;
+    }
+    html += `</div>`; // End of Book breakdown
+    
+    // Daily missions breakdown
+    html += `
+        <div style="margin-top: 10px;">
+            <h4 style="margin-top: 0; margin-bottom: 12px; color: #34495e; border-bottom: 1px solid #eee; padding-bottom: 8px; font-size: 0.95rem;">☀️ 今週のデイリーミッション達成状況</h4>
+    `;
+    
+    if (!db.dailyMissions || db.dailyMissions.length === 0) {
+        html += `<p style="font-size: 0.85rem; color: #95a5a6; margin: 0;">デイリーミッションが登録されていません。</p>`;
+    } else {
+        html += `<div style="display: flex; flex-direction: column; gap: 10px;">`;
+        
+        db.dailyMissions.forEach(mission => {
+            // Let's count achievements for this week (Mon-Sun)
+            let achievementCount = 0;
+            let daysHtml = '';
+            
+            for (let i = 0; i < 7; i++) {
+                let currentDayStr = addDays(mondayStr, i);
+                let dayProg = db.dailyProgresses.find(dp => dp.date === currentDayStr);
+                let isCompleted = false;
+                if (dayProg && dayProg.items) {
+                    let item = dayProg.items.find(it => it.dailyId === mission.id);
+                    if (item && item.status === 'completed') {
+                        isCompleted = true;
+                    }
+                }
+                
+                if (isCompleted) achievementCount++;
+                
+                // Represent days elegantly
+                let bgDay = isCompleted ? 'var(--success-color)' : '#e2e8f0';
+                let textDay = isCompleted ? '#fff' : '#4a5568';
+                let fontWtDay = isCompleted ? 'bold' : 'normal';
+                daysHtml += `
+                    <span style="display: inline-block; width: 22px; height: 22px; line-height: 22px; text-align: center; border-radius: 50%; font-size: 0.75rem; background: ${bgDay}; color: ${textDay}; font-weight: ${fontWtDay};" title="${currentDayStr} (${DAYS_JPN[i]})">
+                        ${DAYS_JPN_SHORT[i]}
+                    </span>
+                `;
+            }
+            
+            const achievePercent = Math.round((achievementCount / 7) * 100);
+            
+            html += `
+                <div style="background: #f9fbfd; border: 1px solid #e1e8ed; padding: 12px; border-radius: 6px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+                    <div>
+                        <strong style="font-size: 0.85rem; color: #2c3e50;">🔥 ${mission.name}</strong>
+                        <div style="font-size: 0.8rem; color: #7f8c8d; margin-top: 4px;">
+                            達成回数: <strong style="color: var(--success-color); font-size: 0.9rem;">${achievementCount}</strong> / 7回 (${achievePercent}%)
+                        </div>
+                    </div>
+                    <div style="display: flex; gap: 5px;">
+                        ${daysHtml}
+                    </div>
+                </div>
+            `;
+        });
+        
+        html += `</div>`;
+    }
+    
+    html += `</div>`; // End of Daily breakdown
+    
+    html += `</div>`; // End of main grid
+    summaryContainer.innerHTML = html;
+}
 
 // --- ヘルパー関数: 圧縮文字列と配列の相互変換 ---
 function parseRangeStr(rangeStr) {
@@ -830,6 +1171,7 @@ function loadDB() {
 function saveDB() {
     localStorage.setItem('study_progress_v4_4', JSON.stringify(db));
     updateTopMilestoneSummary();
+    renderTopWeeklyProgress();
 }
 
 function switchPage(pageId, bookId = null) {
@@ -837,9 +1179,12 @@ function switchPage(pageId, bookId = null) {
     document.getElementById(`page-${pageId}`).classList.add('active');
     updateNavButtons(pageId);
     
-    if(pageId === 'top') { updateTopMilestoneSummary(); }
+    if(pageId === 'top') { 
+        updateTopMilestoneSummary(); 
+        renderTodayTasks(); 
+        renderTopWeeklyProgress(); 
+    }
     if(pageId === 'milestones') { renderTopMilestonesList(); }
-    if(pageId === 'top') renderTodayTasks();
     if(pageId === 'daily') renderDailyMissions();
     if(pageId === 'books') renderBookshelf();
     if(pageId === 'book-detail' && bookId) { currentSelectedBookId = bookId; renderBookDetail(bookId); }
@@ -1341,6 +1686,7 @@ function loadWeeklyPlanKanban() {
     const weekStr = document.getElementById('plan-week-select').value;
     if(!weekStr) return;
     renderKanbanFlow('plan-kanban-board', weekStr, true);
+    renderPlanWeeklySummary();
 }
 
 // 進捗報告用のカンバン読み込みエントリーポイント
@@ -1348,6 +1694,7 @@ function loadReportKanban() {
     const weekStr = document.getElementById('report-week-select').value;
     if(!weekStr) return;
     renderKanbanFlow('report-kanban-board', weekStr, false);
+    renderReportWeeklySummary();
 }
 
 function renderKanbanFlow(boardId, mondayStr, editable) {
@@ -1934,6 +2281,7 @@ window.onload = function() {
     updateNavButtons('top');
     renderTopMilestonesList(); 
     renderTodayTasks();
+    renderTopWeeklyProgress();
 };
 </script>
 </body>
