@@ -20,9 +20,34 @@
             padding: 10px;
         }
 
-        #chart-row { display: flex; gap: 5px; width: 100%; margin-bottom: 8px; }
-        .chart-box { flex: 1; min-width: 0; background: white; padding: 6px 4px; border-radius: 8px; text-align: center; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
-        .canvas-container { position: relative; width: 100%; aspect-ratio: 1 / 1; }
+        #chart-row {
+            display: flex;
+            gap: 5px;
+            width: 100%;
+            margin: 0 auto 8px;      /* 左右のマージンを auto にして中央寄せ、下部に 8px */
+            justify-content: center; /* 子要素を中央に寄せる */
+        }
+        .chart-box {
+            flex: 1;
+            min-width: 0;
+            max-width: 200px;
+            background: white;
+            padding: 6px 4px;
+            border-radius: 8px;
+            text-align: center;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+            /* 縦方向の中央寄せ・レイアウト維持のための設定 */
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .canvas-container {
+            position: relative;
+            width: 100%; 
+            /* max-height を削除し、代わりに入れ物（外枠）の max-width で高さを間接的に制御します */
+            aspect-ratio: 1 / 1; 
+            margin-bottom: 4px;
+        }
 
 		/* スコア表示エリアのベース（ボーダー色はJSで制御するため削除） */
 		.score-display {
@@ -87,8 +112,6 @@
 <div class="sticky-header">
     <div id="chart-row">
         <div class="chart-box"><div class="canvas-container"><canvas id="chart-protein"></canvas></div><div style="font-size:0.65rem; font-weight:bold;">たんぱく質</div><div id="d-protein" style="font-size:0.6rem; margin-top:2px;"></div></div>
-        <div class="chart-box"><div class="canvas-container"><canvas id="chart-fat"></canvas></div><div style="font-size:0.65rem; font-weight:bold;">脂質</div><div id="d-fat" style="font-size:0.6rem; margin-top:2px;"></div></div>
-        <div class="chart-box"><div class="canvas-container"><canvas id="chart-carbs"></canvas></div><div style="font-size:0.65rem; font-weight:bold;">炭水化物</div><div id="d-carbs" style="font-size:0.6rem; margin-top:2px;"></div></div>
         <div class="chart-box"><div class="canvas-container"><canvas id="chart-siso"></canvas></div><div style="font-size:0.65rem; font-weight:bold;">大豆イソフラボン</div><div id="d-siso" style="font-size:0.6rem; margin-top:2px;"></div></div>
     </div>
     <div class="score-display">
@@ -142,7 +165,8 @@ const foodConfigs = [
     { id: 'meat',     name: '肉類', guide: '100g単位', info: '動物性たんぱく質の主役。部位により脂質が変動。', p: 20,   f: 12,  c: 0,   i: 0, type: 'g' },
     { id: 'fish',     name: '魚介類', guide: '切り身1切れ目安', info: '良質な油（DHA/EPA）が含まれます。',     p: 20,   f: 8,   c: 0,   i: 0, type: 'radio', opts: [{l:'0g',v:0},{l:'50g',v:50},{l:'100g',v:100}] },
     { id: 'shirasu',  name: 'しらす大匙1', guide: '約5g', info: '小魚を丸ごと。カルシウム補給に。',            p: 23,   f: 1,   c: 0,   i: 0, type: 'radio', opts: [{l:'なし',v:0},{l:'たべた',v:5}] },
-    { id: 'egg',      name: 'たまご', guide: '1個50g', info: '全ての必須アミノ酸を含む完全栄養食。',           p: 12,   f: 10,  c: 0.4, i: 0, type: 'radio', opts: [{l:'0個',v:0},{l:'0.5個',v:25},{l:'1個',v:50}] },
+    { id: 'egg',      name: 'たまご', guide: '1個50g', info: '全ての必須アミノ酸を含む完全栄養食。',           p: 12,   f: 10,  c: 0.4, i: 0, type: 'radio', opts: [{l:'0個',v:0},{l:'0.5個',v:25},{l:'1個',v:50},{l:'1.5個',v:75},{l:'2個',v:100}] },
+    { id: 'p_adj',    name: 'タンパク質調整', guide: '1g単位', info: 'プロテインなど、他で計算できないタンパク質の直接入力・調整用です。', p: 100,  f: 0,   c: 0,   i: 0, type: 'g' },
 ];
 
 // B構成（野菜・海藻・きのこ・オイルがスコア対象）
@@ -212,7 +236,7 @@ function init() {
     });
 
     // グラフ初期化
-    ['protein','fat','carbs', 'siso'].forEach(id => {
+    ['protein','siso'].forEach(id => {
         let datasetsData = { datasets: [{ data: [0, 100], backgroundColor: [configs[id].color, '#eee'], borderWidth: 0 }] };
         
         // たんぱく質グラフだけは朝昼晩で3色に分ける
@@ -286,7 +310,7 @@ function update() {
 	}
 	
     // グラフ反映
-    ['protein','fat','carbs', 'siso'].forEach(id => {
+    ['protein', 'siso'].forEach(id => {
         const ratio = totals[id] / targets[id];
         
         if (id === 'protein') {
