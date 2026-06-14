@@ -27,18 +27,24 @@
             justify-content: space-between;
             align-items: center;
             border-bottom: 2px solid var(--border-color);
-            padding-bottom: 10px;
-            margin-bottom: 20px;
+            padding-bottom: 0px;
+            margin-bottom: 10px;
         }
         nav button {
             margin-left: 5px;
-            padding: 8px 15px;
+            padding: 9px 14px 11px;
             cursor: pointer;
-            background-color: var(--primary-color);
-            color: white;
+            color: #6b7280;
+            background-color: transparent;
             border: none;
-            border-radius: 4px;
+            border-radius: 6px 6px 0 0;
             font-weight: bold;
+            border-bottom: 4px solid transparent;
+            transition: border-color 0.2s ease, color 0.2s ease;
+        }
+        nav button.active {
+            color: var(--text-color);
+            border-bottom-color: var(--primary-color);
         }
         .page { display: none; }
         .page.active { display: block; }
@@ -367,18 +373,17 @@
 <header>
     <h1>進捗管理システム v4.4</h1>
     <nav>
-        <button onclick="switchPage('top')">トップ・マイルストーン</button>
-        <button onclick="switchPage('daily')">デイリー</button>
-        <button onclick="switchPage('books')">本棚（編集）</button>
-        <button onclick="switchPage('plan')">予定設定</button>
-        <button onclick="switchPage('report')">進捗報告</button>
+        <button data-page="top" onclick="switchPage('top')">トップ・マイルストーン</button>
+        <button data-page="daily" onclick="switchPage('daily')">デイリー</button>
+        <button data-page="books" onclick="switchPage('books')">本棚（編集）</button>
+        <button data-page="plan" onclick="switchPage('plan')">予定設定</button>
+        <button data-page="report" onclick="switchPage('report')">進捗報告</button>
     </nav>
 </header>
 
 <div id="modal-backdrop" class="modal-backdrop" onclick="closeAllModals()"></div>
 
 <div id="page-top" class="page active">
-    <h2>トップ / 全体マイルストーン管理</h2>
     <div style="background: #eef2f5; padding: 15px; border-radius: 6px; margin-bottom: 20px;">
         <h3>直近の目標スケジュール</h3>
         <div id="top-milestone-summary-v3"></div>
@@ -413,13 +418,11 @@
 </div>
 
 <div id="page-daily" class="page">
-    <h2>デイリーミッションの一覧</h2>
     <ul id="daily-list"></ul>
     <button class="fab" onclick="showModal('modal-add-daily')">＋</button>
 </div>
 
 <div id="page-books" class="page">
-    <h2>本棚（教材一覧）</h2>
     <div class="bookshelf" id="bookshelf-container"></div>
     <button class="fab" onclick="openAddBookModal()">＋</button>
 </div>
@@ -429,14 +432,13 @@
         <button onclick="switchPage('books')">← 本棚に戻る</button>
         <button onclick="openBulkSettingModal()" style="background: var(--primary-color); color: white; padding: 8px 16px; border: none; border-radius: 4px; font-weight: bold; cursor: pointer;">一括設定を行う</button>
     </div>
-    <h2 id="detail-book-title">本の詳細</h2>
+    <div id="detail-book-title" style="font-size: 1.5rem; font-weight: bold; margin-bottom: 12px;"></div>
     
     <h3>項目一覧</h3>
     <table id="book-items-table"></table>
 </div>
 
 <div id="page-plan" class="page">
-    <h2>予定の設定（カンバン）</h2>
     <div class="form-group" style="margin-bottom: 20px;">
         <div id="plan-week-display" class="week-range-title" onclick="openWeekSelectModal('plan')"></div>
         <input type="hidden" id="plan-week-select">
@@ -446,12 +448,9 @@
 </div>
 
 <div id="page-report" class="page">
-    <div style="display: flex; justify-content: space-between; align-items: center;">
-        <h2>進捗報告（閲覧・タップ報告）</h2>
-        <button onclick="closeCurrentWeek()" style="background:var(--danger-color); color:white; padding:10px; border:none; border-radius:4px; cursor:pointer; font-weight:bold;">この週を終了する</button>
-    </div>
-    <div class="form-group" style="margin-bottom: 20px;">
+    <div class="form-group" style="margin-bottom: 20px; display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;">
         <div id="report-week-display" class="week-range-title" onclick="openWeekSelectModal('report')"></div>
+        <button onclick="closeCurrentWeek()" style="background:var(--danger-color); color:white; padding:10px 16px; border:none; border-radius:4px; cursor:pointer; font-weight:bold; white-space: nowrap;">この週を終了する</button>
         <input type="hidden" id="report-week-select">
     </div>
     <div class="kanban-board report-board" id="report-kanban-board"></div>
@@ -789,6 +788,7 @@ function saveDB() {
 function switchPage(pageId, bookId = null) {
     document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
     document.getElementById(`page-${pageId}`).classList.add('active');
+    updateNavButtons(pageId);
     
     if(pageId === 'top') { updateTopMilestoneSummary(); renderTopMilestonesList(); }
     if(pageId === 'daily') renderDailyMissions();
@@ -796,6 +796,12 @@ function switchPage(pageId, bookId = null) {
     if(pageId === 'book-detail' && bookId) { currentSelectedBookId = bookId; renderBookDetail(bookId); }
     if(pageId === 'plan') { initDateInput('plan-week-select'); }
     if(pageId === 'report') { initDateInput('report-week-select'); }
+}
+
+function updateNavButtons(activePageId) {
+    document.querySelectorAll('nav button[data-page]').forEach(button => {
+        button.classList.toggle('active', button.dataset.page === activePageId);
+    });
 }
 
 function openWeekSelectModal(prefix) {
@@ -1735,6 +1741,7 @@ function loadGasUrlOnly() {
 window.onload = function() { 
     loadDB(); 
     loadGasUrlOnly();
+    updateNavButtons('top');
     renderTopMilestonesList(); 
 };
 </script>
