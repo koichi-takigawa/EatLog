@@ -1,0 +1,1581 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>MonoGame Text Atlas Compiler</title>
+    <!-- Tailwind CSS Play CDN for zero-compilation local standalone usage -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+      /* Image smoothing setting specifically for pixel-perfect small font previews */
+      .crisp-canvas {
+        image-rendering: pixelated;
+        image-rendering: crisp-edges;
+      }
+    </style>
+  </head>
+  <body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col font-sans selection:bg-blue-600 selection:text-white">
+    <!-- 
+      This is the React Mount root to satisfy Vite development and production compilation.
+      Vite will bootstrap the React App, clear the rest of the body, and inject the layout.
+      If opened offline without Node/Vite, the React modular loading will fail silently,
+      leaving this inline HTML/JS standalone utility running beautifully!
+    -->
+    <div id="root"></div>
+
+    <!-- START OF STANDALONE OFFLINE UTILITY (Fallback wrapper) -->
+    <div id="standalone-app-root" class="flex flex-col min-h-screen">
+      <!-- Top Banner -->
+      <header class="border-b border-slate-800 bg-slate-900/80 backdrop-blur-md sticky top-0 z-40 px-6 py-4 flex flex-col sm:flex-row items-center justify-between gap-4">
+        <div class="flex items-center space-x-3.5 flex-1">
+          <div class="bg-blue-600 text-white w-10 h-10 rounded-lg flex items-center justify-center font-bold text-xl shadow-lg shadow-blue-600/20">
+            M
+          </div>
+          <div>
+            <h1 class="text-lg font-semibold text-white tracking-tight">MonoGame Text Atlas Compiler</h1>
+            <p class="text-[11px] text-slate-400 font-mono">MaxRects-Optimized SpriteFont Tool (Standalone Mode)</p>
+          </div>
+        </div>
+
+        <!-- Metrics widgets -->
+        <div class="flex items-center space-x-4 sm:space-x-6 text-xs font-mono">
+          <div class="bg-slate-800/65 border border-slate-700/50 px-3 py-1.5 rounded-md flex flex-col items-start">
+            <span class="text-[10px] text-slate-500 uppercase">Atlas Dimension</span>
+            <span class="font-semibold text-emerald-400" id="stat-dims">128 × 128px</span>
+          </div>
+          <div class="bg-slate-800/65 border border-slate-700/50 px-3 py-1.5 rounded-md flex flex-col items-start">
+            <span class="text-[10px] text-slate-500 uppercase">Efficiency</span>
+            <span class="font-semibold text-amber-400" id="stat-efficiency">0%</span>
+          </div>
+          <div class="bg-slate-800/65 border border-slate-700/50 px-3 py-1.5 rounded-md flex flex-col items-start">
+            <span class="text-[10px] text-slate-500 uppercase">Glyphs</span>
+            <span class="font-semibold text-indigo-400" id="stat-glyphs">0 characters</span>
+          </div>
+        </div>
+      </header>
+
+      <!-- Main Columns Workspace -->
+      <main class="flex-1 max-w-7xl w-full mx-auto p-6 grid grid-cols-1 lg:grid-cols-12 gap-6">
+        <!-- Inside left settings tab controls -->
+        <section class="lg:col-span-4 space-y-6 flex flex-col">
+          
+          <!-- Font properties selection -->
+          <div class="bg-slate-900 border border-slate-800 rounded-xl p-5 shadow-xl space-y-4">
+            <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+              <span class="text-sm font-semibold text-slate-200 flex items-center gap-2">
+                <svg class="w-4 h-4 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6V4m0 2a2 2 0 100 3m0-3a2 2 0 110 3m-3.765 2A1 1 0 0010 13h4a1 1 0 00.9-.55l.235-.45h.58l.235.45A1 1 0 0017 13h2a1 1 0 001-1v-2a1 1 0 00-1-1h-2a1 1 0 00-1 1v2m-9.765 2A1 1 0 005 13h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2" /></svg>
+                Font Settings
+              </span>
+              <span id="font-badge" class="hidden bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[10px] px-2 py-0.5 rounded-full font-mono uppercase">
+                Custom TTF loaded
+              </span>
+            </div>
+
+            <!-- Custom TTF file picker drag trigger -->
+            <div class="space-y-2">
+              <label class="block text-[11px] font-mono text-slate-400 uppercase">Font File (TTF)</label>
+              <div 
+                class="border-2 border-dashed border-slate-800 hover:border-slate-700 rounded-lg p-4 text-center cursor-pointer bg-slate-950/50 hover:bg-slate-950 transition-all flex flex-col items-center justify-center space-y-2 group"
+                id="file-drop-zone"
+              >
+                <div class="bg-slate-900 border border-slate-800 w-9 h-9 rounded-full flex items-center justify-center">
+                  <svg class="w-4 h-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>
+                </div>
+                <div>
+                  <p class="text-xs text-slate-300 font-medium">Click to select local .ttf file</p>
+                  <p class="text-[10px] text-slate-500 mt-1">Font rendered securely in your browser</p>
+                </div>
+                <input
+                  type="file"
+                  id="font-file-input"
+                  accept=".ttf,.otf"
+                  class="hidden"
+                />
+              </div>
+            </div>
+
+            <!-- Fallback select options -->
+            <div class="space-y-1.5">
+              <label class="block text-[11px] font-mono text-slate-400 uppercase">System Font Fallback</label>
+              <select
+                id="font-fallback-select"
+                class="w-full bg-slate-950 border border-slate-800 text-slate-200 text-xs rounded-lg px-3 py-2 outline-none cursor-pointer"
+              >
+                <option value="sans-serif">System Sans-Serif</option>
+                <option value="monospace">System Monospace</option>
+                <option value="serif">System Serif</option>
+              </select>
+            </div>
+
+            <!-- Font Size sliders -->
+            <div class="grid grid-cols-2 gap-4">
+              <div class="space-y-1">
+                <label class="text-[11px] font-mono text-slate-400 uppercase flex justify-between">
+                  <span>Size</span>
+                  <span class="text-slate-300" id="size-val">18px</span>
+                </label>
+                <input
+                  type="range"
+                  id="font-size-range"
+                  min="8"
+                  max="120"
+                  value="18"
+                  class="w-full h-1 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-blue-500"
+                />
+              </div>
+
+              <div class="space-y-1">
+                <label class="text-[11px] font-mono text-slate-400 uppercase flex justify-between">
+                  <span>Line Offset</span>
+                  <span class="text-slate-300" id="offset-val">+4px</span>
+                </label>
+                <input
+                  type="range"
+                  id="line-offset-range"
+                  min="0"
+                  max="24"
+                  value="4"
+                  class="w-full h-1 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-blue-500"
+                />
+              </div>
+            </div>
+
+            <!-- Font Sharpness / Thinning Edge Filter Slider -->
+            <div class="space-y-1.5 border-t border-slate-800 pt-3" id="standalone-sharpness-control">
+              <label class="text-[11px] font-mono text-slate-400 uppercase flex justify-between">
+                <span class="flex items-center gap-1">
+                  <span>Edge Sharpness / Thinning</span>
+                  <span class="text-[9px] bg-indigo-500/15 text-indigo-300 px-1.5 py-0.2 rounded font-sans leading-none font-semibold font-mono">Edge Filter</span>
+                </span>
+                <span class="text-slate-300 font-mono" id="standalone-sharpness-val">1.25x</span>
+              </label>
+              <input
+                type="range"
+                id="standalone-sharpness-range"
+                min="1.0"
+                max="3.0"
+                step="0.05"
+                value="1.25"
+                class="w-full h-1 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-indigo-500"
+              />
+              <p class="text-[10px] text-slate-500 leading-normal">
+                Prunes blurry canvas grayscale pixels to produce crisper, slender stems. Perfect for complex Kanji strokes.
+              </p>
+            </div>
+
+            <!-- Outline (Stroke) Config -->
+            <div class="space-y-1.5 border-t border-slate-800 pt-3" id="standalone-stroke-control">
+              <label class="text-[11px] font-mono text-slate-400 uppercase flex justify-between">
+                <span class="flex items-center gap-1">
+                  <span>Glyph Outline (Stroke)</span>
+                  <span class="text-[9px] bg-sky-500/15 text-sky-300 px-1.5 py-0.2 rounded font-sans leading-none font-semibold font-mono">Outline</span>
+                </span>
+                <span class="text-slate-300 font-mono" id="standalone-stroke-val">None</span>
+              </label>
+              
+              <div class="grid grid-cols-3 gap-2 items-center" id="standalone-stroke-layout">
+                <!-- Stroke Width Slider -->
+                <div class="col-span-2 space-y-1">
+                  <input
+                    type="range"
+                    id="standalone-stroke-width-range"
+                    min="0"
+                    max="10"
+                    step="0.5"
+                    value="0"
+                    class="w-full h-1 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-sky-500"
+                  />
+                </div>
+
+                <!-- Stroke Color Picker -->
+                <div class="flex items-center space-x-1.5 justify-end">
+                  <input
+                    type="color"
+                    id="standalone-stroke-color-picker"
+                    value="#000000"
+                    class="w-8 h-6 bg-slate-800 border border-slate-700 rounded cursor-pointer p-0.5"
+                    title="Outline Color"
+                  />
+                  <span class="text-[10px] font-mono text-slate-300 tracking-wider" id="standalone-stroke-color-val">
+                    #000000
+                  </span>
+                </div>
+              </div>
+              <p class="text-[10px] text-slate-500 leading-normal">
+                Adds a solid outline outline border around characters. Increases bounding box size automatically.
+              </p>
+            </div>
+          </div>
+
+          <!-- Glyph set Preset selection panel -->
+          <div class="bg-slate-900 border border-slate-800 rounded-xl p-5 shadow-xl space-y-4">
+            <span class="text-sm font-semibold text-slate-200 flex items-center gap-2 border-b border-slate-800 pb-3">
+              <svg class="w-4 h-4 text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4" /></svg>
+              Character Preset
+            </span>
+
+            <div class="grid grid-cols-2 gap-2" id="preset-btn-deck">
+              <button type="button" data-preset="alphanumeric" class="preset-btn text-left px-3 py-2 rounded-lg text-xs font-medium cursor-pointer bg-indigo-500/10 border border-indigo-400/30 text-indigo-300">
+                AlphaNumeric
+              </button>
+              <button type="button" data-preset="ascii" class="preset-btn text-left px-3 py-2 rounded-lg text-xs font-medium cursor-pointer bg-slate-950 border border-slate-800 text-slate-400 hover:text-slate-300">
+                ASCII (Standard)
+              </button>
+              <button type="button" data-preset="numbers" class="preset-btn text-left px-3 py-2 rounded-lg text-xs font-medium cursor-pointer bg-slate-950 border border-slate-800 text-slate-400 hover:text-slate-300">
+                Numbers/Symbols
+              </button>
+              <button type="button" data-preset="hiragana" class="preset-btn text-left px-3 py-2 rounded-lg text-xs font-medium cursor-pointer bg-slate-950 border border-slate-800 text-slate-400 hover:text-slate-300">
+                Hiragana あ-ん
+              </button>
+            </div>
+
+            <div class="space-y-2">
+              <label class="block text-[11px] font-mono text-slate-400 uppercase">Custom Characters Input</label>
+              <textarea
+                id="custom-chars-input"
+                class="w-full h-24 bg-slate-950 border border-slate-800 focus:border-slate-700 text-slate-200 font-mono text-xs rounded-lg p-3 outline-none resize-none"
+              ></textarea>
+              <div class="text-[10px] text-slate-500 flex justify-between font-mono">
+                <span>Unique characters count: <span id="unique-cnt">0</span></span>
+                <span>Duplicates compressed</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Atlas output size packing parameters control -->
+          <div class="bg-slate-900 border border-slate-800 rounded-xl p-5 shadow-xl space-y-4 flex-1">
+            <span class="text-sm font-semibold text-slate-200 flex items-center gap-2 border-b border-slate-800 pb-3">
+              <svg class="w-4 h-4 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" /></svg>
+              Atlas Sheet Layout
+            </span>
+
+            <div class="space-y-1.5">
+              <label class="block text-[11px] font-mono text-slate-400 uppercase">Canvas Size Constraint</label>
+              <select
+                id="size-constraint-select"
+                class="w-full bg-slate-950 border border-slate-800 text-slate-200 text-xs rounded-lg px-3 py-2 outline-none cursor-pointer"
+              >
+                <option value="auto">Auto Fits (Smallest Power-of-2)</option>
+                <option value="256">Fixed 256 × 256 px</option>
+                <option value="512">Fixed 512 × 512 px</option>
+                <option value="1024">Fixed 1024 × 1024 px</option>
+                <option value="2048">Fixed 2048 × 2048 px</option>
+                <option value="4096">Fixed 4096 × 4096 px</option>
+                <option value="custom">Custom Dimensions</option>
+              </select>
+            </div>
+
+            <!-- Custom resolution limits option fields -->
+            <div id="custom-res-wrapper" class="hidden grid grid-cols-2 gap-3">
+              <div class="space-y-1">
+                <label class="text-[10px] font-mono text-slate-500 uppercase">Width</label>
+                <input
+                  type="number"
+                  id="custom-res-width"
+                  value="512"
+                  class="w-full bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1.5 font-mono text-xs outline-none"
+                />
+              </div>
+              <div class="space-y-1">
+                <label class="text-[10px] font-mono text-slate-500 uppercase">Height</label>
+                <input
+                  type="number"
+                  id="custom-res-height"
+                  value="512"
+                  class="w-full bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1.5 font-mono text-xs outline-none"
+                />
+              </div>
+            </div>
+
+            <!-- Separator padding limits -->
+            <div class="space-y-1">
+              <label class="text-[11px] font-mono text-slate-400 uppercase flex justify-between">
+                <span>Border Padding Spacing</span>
+                <span class="text-slate-300" id="spacing-val">2px</span>
+              </label>
+              <input
+                type="range"
+                id="border-spacing-range"
+                min="0"
+                max="8"
+                value="2"
+                class="w-full h-1 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-emerald-500"
+              />
+              <p class="text-[10px] text-slate-500 mt-1 leading-relaxed">
+                Prevents edge bleeding when rendering font scaling in game layout.
+              </p>
+            </div>
+
+            <!-- Local errors displays -->
+            <div id="local-error" class="hidden bg-red-500/10 border border-red-500/20 text-red-400 text-xs rounded-lg p-3.5 font-mono leading-relaxed"></div>
+          </div>
+        </section>
+
+        <!-- Right Column Visualizer controls -->
+        <section class="lg:col-span-8 space-y-6 flex flex-col">
+          
+          <!-- Sheet preview card -->
+          <div class="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden shadow-xl flex flex-col">
+            <div class="bg-slate-900/50 border-b border-slate-800 px-5 py-3 flex flex-col sm:flex-row items-center justify-between gap-2">
+              <span class="text-xs font-semibold text-slate-300 flex items-center gap-2">
+                <svg class="w-4 h-4 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path stroke-linecap="round" stroke-linejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
+                Rendered Texture Atlas Preview
+              </span>
+
+              <div class="flex items-center space-x-4 text-xs font-mono">
+                <label class="flex items-center space-x-2 cursor-pointer select-none">
+                  <input type="checkbox" id="toggle-outlines" checked class="rounded border-slate-800 accent-emerald-500 w-3.5 h-3.5 cursor-pointer" />
+                  <span class="text-slate-400 text-[11px]">Outlines</span>
+                </label>
+
+                <label class="flex items-center space-x-2 cursor-pointer select-none">
+                  <input type="checkbox" id="toggle-freerects" class="rounded border-slate-800 accent-cyan-500 w-3.5 h-3.5 cursor-pointer" />
+                  <span class="text-slate-400 text-[11px]">Free Rects</span>
+                </label>
+
+                <!-- Checker background filters -->
+                <div class="bg-slate-950 border border-slate-800 rounded-md p-0.5 flex">
+                  <button type="button" data-bg="dark" class="bg-btn px-2 py-0.5 rounded cursor-pointer text-[10px] font-medium bg-slate-800 text-slate-200">Dark</button>
+                  <button type="button" data-bg="light" class="bg-btn px-2 py-0.5 rounded cursor-pointer text-[10px] font-medium text-slate-500 hover:text-slate-400">Light</button>
+                  <button type="button" data-bg="transparent" class="bg-btn px-2 py-0.5 rounded cursor-pointer text-[10px] font-medium text-slate-500 hover:text-slate-400">Grid</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Zoom bar -->
+            <div class="bg-slate-950/40 px-5 py-2 flex items-center justify-between border-b border-slate-800/60 font-mono text-[11px]">
+              <span class="text-slate-400">Preview Scale zoom: <span id="zoom-val">100</span>%</span>
+              <div class="flex items-center space-x-3.5 w-48">
+                <input
+                  type="range"
+                  id="zoom-slider"
+                  min="50"
+                  max="400"
+                  value="100"
+                  class="w-full h-1 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-blue-500"
+                />
+              </div>
+            </div>
+
+            <!-- Master canvas area -->
+            <div class="flex-1 min-h-[340px] max-h-[480px] overflow-auto p-6 bg-slate-950/70 relative flex items-center justify-center border-b border-slate-800">
+              <div id="canvas-transformer" class="transition-transform duration-100 ease-out flex items-center justify-center shadow-2xl relative">
+                <canvas id="atlas-sheet-canvas" class="crisp-canvas cursor-crosshair max-w-none shadow-xl border border-slate-800 rounded"></canvas>
+              </div>
+            </div>
+
+            <!-- Selected Glyph inspector display -->
+            <div class="bg-slate-900 px-5 py-3 flex items-center justify-between font-mono text-[11px] border-b border-slate-800" id="offline-inspector-row">
+              <div class="flex items-center space-x-2 text-slate-400">
+                <svg class="w-3.5 h-3.5 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15 15l-2 5L9 9l11 4-5 2zm0 0l5 5M7.188 2.239l.777 2.897M5.136 7.965l-2.898-.777M13.95 4.05l-2.122 2.122m-5.657 5.656l-2.12 2.122" /></svg>
+                <span>Click any character on sheet to inspect precise boundary offsets</span>
+              </div>
+            </div>
+
+            <!-- PNG/JSON Trigger downloader buttons -->
+            <div class="bg-slate-900 p-4 border-t border-slate-800 flex justify-end space-x-3">
+              <button
+                type="button"
+                id="btn-download-json"
+                class="bg-indigo-600 hover:bg-indigo-500 active:translate-y-0.5 text-white text-xs font-semibold px-4 py-2.5 rounded-lg flex items-center gap-2 transition-all cursor-pointer"
+              >
+                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+                Download JSON
+              </button>
+              <button
+                type="button"
+                id="btn-download-xml"
+                class="bg-amber-600 hover:bg-amber-500 active:translate-y-0.5 text-white text-xs font-semibold px-4 py-2.5 rounded-lg flex items-center gap-2 transition-all cursor-pointer"
+              >
+                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+                Download XML
+              </button>
+              <button
+                type="button"
+                id="btn-download-dat"
+                class="bg-blue-600 hover:bg-blue-500 active:translate-y-0.5 text-white text-xs font-semibold px-4 py-2.5 rounded-lg flex items-center gap-2 transition-all cursor-pointer"
+              >
+                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+                Download Dat
+              </button>
+              <button
+                type="button"
+                id="btn-download-png"
+                class="bg-emerald-600 hover:bg-emerald-500 active:translate-y-0.5 text-white text-xs font-semibold px-4 py-2.5 rounded-lg flex items-center gap-2 transition-all cursor-pointer"
+              >
+                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+                Download PNG
+              </button>
+            </div>
+          </div>
+
+          <!-- Sandbox and C# Code tab sheets -->
+          <div class="grid grid-cols-1 gap-6">
+            <!-- Playpen simulator panel -->
+            <div class="bg-slate-900 border border-slate-800 rounded-xl p-5 shadow-xl flex flex-col space-y-4">
+              <span class="text-sm font-semibold text-slate-200 flex items-center gap-2 border-b border-slate-800 pb-3">
+                <svg class="w-4 h-4 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                Playpen Simulator
+              </span>
+
+              <textarea
+                id="playpen-input"
+                class="w-full bg-slate-950 border border-slate-800 font-mono text-slate-300 text-xs rounded-lg p-3 outline-none resize-none h-20"
+                placeholder="Type test strings here to verify packed text rendering..."
+              >MonoGame Text Atlas!
+Scale 12px works pristine.
+0123456789 +-/*=?</textarea>
+
+              <div class="border border-slate-800 rounded-lg overflow-hidden bg-slate-950 h-[120px]">
+                <canvas id="playpen-canvas" width="800" height="120" class="w-full h-full block"></canvas>
+              </div>
+              <p class="text-[10px] text-slate-500 italic leading-relaxed">
+                Renders custom text character-by-character from generated Sprite Coordinates. If characters line up smoothly, packing alignment parameters are perfectly correct!
+              </p>
+            </div>
+          </div>
+
+          <!-- Metadata schema JSON box -->
+          <div class="bg-slate-900 border border-slate-800 rounded-xl p-5 shadow-xl space-y-4">
+            <div class="flex items-center justify-between border-b border-slate-800 pb-2.5">
+              <span class="text-sm font-semibold text-slate-200 flex items-center gap-2">
+                <svg class="w-4 h-4 text-teal-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                Raw JSON Schema Output
+              </span>
+              <button
+                type="button"
+                id="btn-copy-json-standalone"
+                class="text-teal-400 hover:text-teal-300 font-semibold cursor-pointer text-xs flex items-center gap-1 bg-teal-500/5 px-2.5 py-1 border border-teal-500/20 rounded-md"
+              >
+                Copy JSON
+              </button>
+            </div>
+            <div class="bg-slate-950 rounded-lg p-3 border border-slate-800/85 overflow-auto max-h-48 font-mono text-[10px] text-teal-400/90">
+              <pre id="json-schema-block"></pre>
+            </div>
+          </div>
+
+        </section>
+      </main>
+
+      <!-- Footer credits -->
+      <footer class="border-t border-slate-800 bg-slate-950 px-6 py-4 mt-12 text-center text-[11px] text-slate-500 font-mono">
+        <p>MonoGame Text Atlas Compiler • Designed at Pixel Scale • No servers utilized during export</p>
+      </footer>
+    </div>
+    <!-- END OF STANDALONE OFFLINE UTILITY (Fallback wrapper) -->
+
+    <!-- STANDALONE JS IMPLEMENTATION DIRECTLY IN FILE -->
+    <script>
+      // Presets database
+      const ASCII_CHARS = ' !"#$%&\'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~';
+      const ALPHANUMERIC_CHARS = '0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ.,!?-+= ';
+      const NUMBERS_CHARS = '0123456789.,:;+-*/=%$()[]{}';
+      const HIRAGANA_CHARS = 'あいうえおかきくけこさしすせそたちつてとなにぬねのはひふへほまみむめもやゆよらりるれろわをん';
+      const KATAKANA_CHARS = 'アイウエオカキクケコサシスセソタチツテトナニヌネノハヒフヘホマミムメモヤユヨラリルレロワヲン';
+
+      // MaxRects Packer Implementation 
+      class StandaloneMaxRects {
+        constructor(w, h) {
+          this.width = w;
+          this.height = h;
+          this.freeRectangles = [{ x: 0, y: 0, width: w, height: h }];
+        }
+
+        insert(w, h) {
+          let bestShortSideFit = Infinity;
+          let bestLongSideFit = Infinity;
+          let bestRectIndex = -1;
+
+          for (let i = 0; i < this.freeRectangles.length; i++) {
+            const freeRect = this.freeRectangles[i];
+            if (freeRect.width >= w && freeRect.height >= h) {
+              const leftWidth = freeRect.width - w;
+              const leftHeight = freeRect.height - h;
+              const shortSideFit = Math.min(leftWidth, leftHeight);
+              const longSideFit = Math.max(leftWidth, leftHeight);
+
+              if (shortSideFit < bestShortSideFit || (shortSideFit === bestShortSideFit && longSideFit < bestLongSideFit)) {
+                bestShortSideFit = shortSideFit;
+                bestLongSideFit = longSideFit;
+                bestRectIndex = i;
+              }
+            }
+          }
+
+          if (bestRectIndex === -1) return null;
+
+          const bestRect = this.freeRectangles[bestRectIndex];
+          const placed = { x: bestRect.x, y: bestRect.y, width: w, height: h };
+
+          let newFreeRects = [];
+          for (let i = 0; i < this.freeRectangles.length; i++) {
+            const splitResult = this.splitFreeRect(this.freeRectangles[i], placed);
+            if (splitResult) {
+              newFreeRects.push(...splitResult);
+            }
+          }
+
+          this.freeRectangles = this.pruneFreeRects(newFreeRects);
+          return placed;
+        }
+
+        splitFreeRect(freeRect, placedBox) {
+          if (placedBox.x >= freeRect.x + freeRect.width ||
+              placedBox.x + placedBox.width <= freeRect.x ||
+              placedBox.y >= freeRect.y + freeRect.height ||
+              placedBox.y + placedBox.height <= freeRect.y) {
+            return [freeRect];
+          }
+
+          const result = [];
+          if (placedBox.x > freeRect.x) {
+            result.push({ x: freeRect.x, y: freeRect.y, width: placedBox.x - freeRect.x, height: freeRect.height });
+          }
+          if (placedBox.x + placedBox.width < freeRect.x + freeRect.width) {
+            result.push({ x: placedBox.x + placedBox.width, y: freeRect.y, width: (freeRect.x + freeRect.width) - (placedBox.x + placedBox.width), height: freeRect.height });
+          }
+          if (placedBox.y > freeRect.y) {
+            result.push({ x: freeRect.x, y: freeRect.y, width: freeRect.width, height: placedBox.y - freeRect.y });
+          }
+          if (placedBox.y + placedBox.height < freeRect.y + freeRect.height) {
+            result.push({ x: freeRect.x, y: placedBox.y + placedBox.height, width: freeRect.width, height: (freeRect.y + freeRect.height) - (placedBox.y + placedBox.height) });
+          }
+          return result;
+        }
+
+        pruneFreeRects(rectList) {
+          const result = [];
+          for (let i = 0; i < rectList.length; i++) {
+            let isContained = false;
+            for (let j = 0; j < rectList.length; j++) {
+              if (i === j) continue;
+              const a = rectList[i];
+              const b = rectList[j];
+              if (a.x >= b.x && a.y >= b.y && (a.x + a.width <= b.x + b.width) && (a.y + a.height <= b.y + b.height)) {
+                isContained = true;
+                break;
+              }
+            }
+            if (!isContained) {
+              result.push(rectList[i]);
+            }
+          }
+          return result;
+        }
+      }
+
+      // Standalone State Management
+      let state = {
+        fontFamily: "sans-serif",
+        customFontLoaded: false,
+        fontSize: 18,
+        lineHeightOffset: 4,
+        fontSharpness: 1.25,
+        strokeWidth: 0,
+        strokeColor: "#000000",
+        characterSet: ALPHANUMERIC_CHARS,
+        selectedPreset: "alphanumeric",
+        sizeOption: "auto",
+        customWidth: 512,
+        customHeight: 512,
+        spacing: 2,
+        zoom: 100,
+        showOutlines: true,
+        showFreeRects: false,
+        atlasBg: "dark",
+        selectedChar: null,
+        playpenText: "MonoGame Text Atlas!\nScale 12px works pristine.\n0123456789 +-/*=?"
+      };
+
+
+      // Global reference nodes
+      let compiledAtlasMetadata = null;
+      let compiledFreeRects = [];
+      let calculatedW = 256;
+      let calculatedH = 256;
+      let packingEfficiency = 0;
+
+      // Scan character pixel metrics
+      function standaloneScanGlyph(char, fontSize, fontFamily, tempCanvas, tempCtx, fontSharpness = 1.0, strokeWidth = 0, strokeColor = "#000000") {
+        tempCtx.clearRect(0, 0, tempCanvas.width, tempCanvas.height);
+        tempCtx.font = `${fontSize}px ${fontFamily}`;
+        tempCtx.fillStyle = "#ffffff";
+        tempCtx.textBaseline = "alphabetic";
+
+        const metrics = tempCtx.measureText(char);
+        const baseAdv = Math.ceil(metrics.width) || Math.ceil(fontSize * 0.4);
+        const adv = strokeWidth > 0 ? baseAdv + Math.ceil(strokeWidth * 2) : baseAdv;
+
+        if (char === " " || char === "\t" || char === "\n" || char === "\r") {
+          return { char, x: 0, y: 0, width: 0, height: 0, offsetX: 0, offsetY: 0, advance: adv, hasPixels: false };
+        }
+
+        const baseX = Math.ceil(tempCanvas.width * 0.3);
+        const baseY = Math.ceil(tempCanvas.height * 0.65);
+
+        if (strokeWidth > 0) {
+          tempCtx.strokeStyle = strokeColor;
+          tempCtx.lineWidth = strokeWidth * 2;
+          tempCtx.lineJoin = "round";
+          tempCtx.strokeText(char, baseX, baseY);
+        }
+        tempCtx.fillText(char, baseX, baseY);
+
+        if (fontSharpness !== 1.0) {
+          const scanImgData = tempCtx.getImageData(0, 0, tempCanvas.width, tempCanvas.height);
+          const sD = scanImgData.data;
+          for (let i = 3; i < sD.length; i += 4) {
+            const val = sD[i];
+            if (val > 0) {
+              const normal = val / 255;
+              let nA = Math.pow(normal, fontSharpness) * 255;
+              if (fontSharpness > 1.1) {
+                if (normal > 0.5) {
+                  nA = Math.min(255, nA * 1.1);
+                } else {
+                  nA = nA * 0.9;
+                }
+              }
+              sD[i] = Math.min(255, Math.max(0, Math.round(nA)));
+            }
+          }
+          tempCtx.putImageData(scanImgData, 0, 0);
+        }
+
+        const imgData = tempCtx.getImageData(0, 0, tempCanvas.width, tempCanvas.height);
+        const d = imgData.data;
+
+        let minX = tempCanvas.width, maxX = -1, minY = tempCanvas.height, maxY = -1;
+        for (let y = 0; y < tempCanvas.height; y++) {
+          for (let x = 0; x < tempCanvas.width; x++) {
+            const aIndex = (y * tempCanvas.width + x) * 4 + 3;
+            if (d[aIndex] > 1) {
+              if (x < minX) minX = x;
+              if (x > maxX) maxX = x;
+              if (y < minY) minY = y;
+              if (y > maxY) maxY = y;
+            }
+          }
+        }
+
+        if (maxX < minX || maxY < minY) {
+          return { char, x: 0, y: 0, width: 0, height: 0, offsetX: 0, offsetY: 0, advance: adv, hasPixels: false };
+        }
+
+        return {
+          char,
+          x: 0,
+          y: 0,
+          width: maxX - minX + 1,
+          height: maxY - minY + 1,
+          offsetX: minX - baseX,
+          offsetY: minY - baseY,
+          advance: adv,
+          hasPixels: true
+        };
+      }
+
+      // Recompile Atlas structure
+      function compileAtlasStandalone() {
+        const uniqueChars = Array.from(new Set(state.characterSet.split("")));
+        const errorDiv = document.getElementById("local-error");
+        errorDiv.classList.add("hidden");
+        errorDiv.innerText = "";
+
+        if (uniqueChars.length === 0) {
+          errorDiv.innerText = "Please specify at least 1 character to render.";
+          errorDiv.classList.remove("hidden");
+          return;
+        }
+
+        const scanCanvas = document.createElement("canvas");
+        const dim = Math.max(128, Math.ceil(state.fontSize * 5));
+        scanCanvas.width = dim;
+        scanCanvas.height = dim;
+        const scanCtx = scanCanvas.getContext("2d", { willReadFrequently: true });
+
+        try {
+          const glyphsList = [];
+          let maxAscent = 0;
+          let maxDescent = 0;
+
+          // Gather Metrics
+          for (let i = 0; i < uniqueChars.length; i++) {
+            const item = standaloneScanGlyph(uniqueChars[i], state.fontSize, state.fontFamily, scanCanvas, scanCtx, state.fontSharpness, state.strokeWidth, state.strokeColor);
+            glyphsList.push(item);
+
+            if (item.hasPixels) {
+              const asc = -item.offsetY;
+              const desc = item.height + item.offsetY;
+              if (asc > maxAscent) maxAscent = asc;
+              if (desc > maxDescent) maxDescent = desc;
+            }
+          }
+
+          const resolvedLineHeight = maxAscent + maxDescent + state.lineHeightOffset;
+
+          // Sort glyphs
+          const packList = [...glyphsList].sort((a,b) => b.height - a.height || b.width - a.width);
+
+          let finalW = state.customWidth;
+          let finalH = state.customHeight;
+          let packerObj = null;
+          let packedBoxes = {};
+          let unpackedList = [];
+
+          if (state.sizeOption === "auto") {
+            const sizes = [128, 256, 512, 1024, 2048, 4096];
+            let success = false;
+
+            for (const s of sizes) {
+              packerObj = new StandaloneMaxRects(s, s);
+              packedBoxes = {};
+              let allFit = true;
+
+              for (const glyph of packList) {
+                if (!glyph.hasPixels) continue;
+
+                const pw = glyph.width + state.spacing * 2;
+                const ph = glyph.height + state.spacing * 2;
+                const slot = packerObj.insert(pw, ph);
+
+                if (slot) {
+                  packedBoxes[glyph.char] = {
+                    x: slot.x + state.spacing,
+                    y: slot.y + state.spacing,
+                    width: glyph.width,
+                    height: glyph.height
+                  };
+                } else {
+                  allFit = false;
+                  break;
+                }
+              }
+
+              if (allFit) {
+                finalW = s;
+                finalH = s;
+                success = true;
+                break;
+              }
+            }
+
+            if (!success) {
+              errorDiv.innerText = "Large 4096 size fits limit reached. Lower size spacing.";
+              errorDiv.classList.remove("hidden");
+              return;
+            }
+          } else {
+            packerObj = new StandaloneMaxRects(finalW, finalH);
+            packedBoxes = {};
+            for (const glyph of packList) {
+              if (!glyph.hasPixels) continue;
+
+              const pw = glyph.width + state.spacing * 2;
+              const ph = glyph.height + state.spacing * 2;
+              const slot = packerObj.insert(pw, ph);
+
+              if (slot) {
+                packedBoxes[glyph.char] = {
+                  x: slot.x + state.spacing,
+                  y: slot.y + state.spacing,
+                  width: glyph.width,
+                  height: glyph.height
+                };
+              } else {
+                unpackedList.push(glyph.char);
+              }
+            }
+          }
+
+          // Build json package
+          compiledAtlasMetadata = {
+            font: {
+              family: state.fontFamily,
+              size: state.fontSize,
+              lineHeight: resolvedLineHeight,
+              ascent: maxAscent,
+              descent: maxDescent
+            },
+            glyphs: {}
+          };
+
+          for (const item of glyphsList) {
+            if (!item.hasPixels) {
+              compiledAtlasMetadata.glyphs[item.char] = {
+                char: item.char, x: 0, y: 0, width: 0, height: 0, offsetX: 0, offsetY: 0, advance: item.advance
+              };
+            } else {
+              const placed = packedBoxes[item.char];
+              if (placed) {
+                compiledAtlasMetadata.glyphs[item.char] = {
+                  char: item.char,
+                  x: placed.x,
+                  y: placed.y,
+                  width: placed.width,
+                  height: placed.height,
+                  offsetX: item.offsetX,
+                  offsetY: item.offsetY,
+                  advance: item.advance
+                };
+              }
+            }
+          }
+
+          // Compute kerning pairs
+          const kernings = [];
+          const kernTargets = uniqueChars.length <= 150 
+            ? uniqueChars 
+            : uniqueChars.filter(c => {
+                const code = c.charCodeAt(0);
+                return code >= 32 && code <= 126;
+              });
+
+          if (kernTargets.length > 1) {
+            scanCtx.font = `${state.fontSize}px "${state.fontFamily}"`;
+            for (let i = 0; i < kernTargets.length; i++) {
+              const first = kernTargets[i];
+              const w1 = scanCtx.measureText(first).width;
+              for (let j = 0; j < kernTargets.length; j++) {
+                const second = kernTargets[j];
+                const w2 = scanCtx.measureText(second).width;
+                const wCombined = scanCtx.measureText(first + second).width;
+                const diff = wCombined - (w1 + w2);
+                const amount = Math.round(diff);
+                if (amount !== 0) {
+                  kernings.push({ first, second, amount });
+                }
+              }
+            }
+          }
+          compiledAtlasMetadata.kernings = kernings;
+
+          calculatedW = finalW;
+          calculatedH = finalH;
+          compiledFreeRects = packerObj ? packerObj.freeRectangles : [];
+
+          // Stats math
+          let fillPixelArea = 0;
+          let activeGlyphCount = 0;
+          for (const char in packedBoxes) {
+            fillPixelArea += packedBoxes[char].width * packedBoxes[char].height;
+            activeGlyphCount++;
+          }
+          packingEfficiency = finalW * finalH > 0 ? Math.round((fillPixelArea / (finalW * finalH)) * 1000) / 10 : 0;
+
+          // Dispatch visual updates
+          document.getElementById("stat-dims").innerText = `${finalW} × ${finalH}px`;
+          document.getElementById("stat-efficiency").innerText = `${packingEfficiency}%`;
+          document.getElementById("stat-glyphs").innerText = `${activeGlyphCount} glyphs`;
+          document.getElementById("unique-cnt").innerText = uniqueChars.length;
+
+          if (unpackedList.length > 0) {
+            errorDiv.innerText = `${unpackedList.length} glyphs excluded. Enlarge canvas.`;
+            errorDiv.classList.remove("hidden");
+          }
+
+          renderVisualizerCanvas();
+          renderPlaypenCanvas();
+          
+          if (compiledAtlasMetadata) {
+            const exportData = {
+              font: compiledAtlasMetadata.font,
+              glyphs: Object.values(compiledAtlasMetadata.glyphs),
+              kernings: compiledAtlasMetadata.kernings
+            };
+            document.getElementById("json-schema-block").innerText = JSON.stringify(exportData, null, 2);
+          } else {
+            document.getElementById("json-schema-block").innerText = "";
+          }
+        } catch (err) {
+          console.error(err);
+          errorDiv.innerText = "Error rebuilding standalone state.";
+          errorDiv.classList.remove("hidden");
+        }
+      }
+
+      // Draw the sheet map
+      function renderVisualizerCanvas() {
+        const canvas = document.getElementById("atlas-sheet-canvas");
+        if (!canvas || !compiledAtlasMetadata) return;
+
+        const ctx = canvas.getContext("2d");
+        if (!ctx) return;
+
+        canvas.width = calculatedW;
+        canvas.height = calculatedH;
+        ctx.clearRect(0,0, calculatedW, calculatedH);
+
+        // Render BG fill
+        if (state.atlasBg === "dark") {
+          ctx.fillStyle = "#0f172a";
+          ctx.fillRect(0,0, calculatedW, calculatedH);
+        } else if (state.atlasBg === "light") {
+          ctx.fillStyle = "#f8fafc";
+          ctx.fillRect(0,0, calculatedW, calculatedH);
+        } else {
+          const gridSize = 8;
+          for (let y = 0; y < calculatedH; y += gridSize) {
+            for (let x = 0; x < calculatedW; x += gridSize) {
+              ctx.fillStyle = ((x / gridSize + y / gridSize) % 2 === 0) ? "#f1f5f9" : "#cbd5e1";
+              ctx.fillRect(x, y, gridSize, gridSize);
+            }
+          }
+        }
+
+        const scanCanvas = document.createElement("canvas");
+        const dim = Math.max(128, Math.ceil(state.fontSize * 5));
+        scanCanvas.width = dim;
+        scanCanvas.height = dim;
+        const scanCtx = scanCanvas.getContext("2d");
+
+        for (const char in compiledAtlasMetadata.glyphs) {
+          const g = compiledAtlasMetadata.glyphs[char];
+          if (g.width === 0 || g.height === 0) continue;
+
+          scanCtx.clearRect(0,0, dim, dim);
+          scanCtx.font = `${state.fontSize}px ${state.fontFamily}`;
+          scanCtx.fillStyle = (state.atlasBg === "light") ? "#0f172a" : "#ffffff";
+          scanCtx.textBaseline = "alphabetic";
+
+          const scanX = Math.ceil(dim * 0.3);
+          const scanY = Math.ceil(dim * 0.65);
+
+          if (state.strokeWidth > 0) {
+            scanCtx.strokeStyle = state.strokeColor;
+            scanCtx.lineWidth = state.strokeWidth * 2;
+            scanCtx.lineJoin = "round";
+            scanCtx.strokeText(char, scanX, scanY);
+          }
+          scanCtx.fillText(char, scanX, scanY);
+
+          // Apply real-time alpha sharpness correction on cropped sub-rectangle
+          const sx = scanX + g.offsetX;
+          const sy = scanY + g.offsetY;
+
+          if (state.fontSharpness !== 1.0) {
+            try {
+              const imgData = scanCtx.getImageData(sx, sy, g.width, g.height);
+              const data = imgData.data;
+              for (let i = 3; i < data.length; i += 4) {
+                const a = data[i];
+                if (a > 0) {
+                  const v = a / 255;
+                  let newVal = Math.pow(v, state.fontSharpness) * 255;
+                  
+                  if (state.fontSharpness > 1.1) {
+                    if (v > 0.5) {
+                      newVal = Math.min(255, newVal * 1.1);
+                    } else {
+                      newVal = newVal * 0.9;
+                    }
+                  }
+                  data[i] = Math.min(255, Math.max(0, Math.round(newVal)));
+                }
+              }
+              scanCtx.putImageData(imgData, sx, sy);
+            } catch (e) {
+              console.error("Failed to apply pixel sharpness standalone", e);
+            }
+          }
+
+          ctx.drawImage(
+            scanCanvas,
+            sx,
+            sy,
+            g.width,
+            g.height,
+            g.x,
+            g.y,
+            g.width,
+            g.height
+          );
+
+          if (state.showOutlines) {
+            ctx.strokeStyle = "rgba(16, 185, 129, 0.65)";
+            ctx.lineWidth = 1;
+            ctx.strokeRect(g.x - 0.5, g.y - 0.5, g.width + 1, g.height + 1);
+
+            if (state.selectedChar === char) {
+              ctx.strokeStyle = "#3b82f6";
+              ctx.lineWidth = 1.5;
+              ctx.strokeRect(g.x - 1, g.y - 1, g.width + 2, g.height + 2);
+            }
+          }
+        }
+
+        if (state.showFreeRects) {
+          ctx.fillStyle = "rgba(6, 182, 212, 0.15)";
+          ctx.strokeStyle = "rgba(6, 182, 212, 0.4)";
+          ctx.lineWidth = 1;
+          for (const fr of compiledFreeRects) {
+            ctx.fillRect(fr.x + 0.5, fr.y + 0.5, fr.width - 1, fr.height - 1);
+            ctx.strokeRect(fr.x + 0.5, fr.y + 0.5, fr.width - 1, fr.height - 1);
+          }
+        }
+      }
+
+      // Draw sandbox string output
+      function renderPlaypenCanvas() {
+        const canvas = document.getElementById("playpen-canvas");
+        const sheet = document.getElementById("atlas-sheet-canvas");
+        if (!canvas || !sheet || !compiledAtlasMetadata) return;
+
+        const dpr = window.devicePixelRatio || 1;
+        const rect = canvas.getBoundingClientRect();
+        const width = Math.floor(rect.width || canvas.clientWidth || 800);
+        const height = Math.floor(rect.height || canvas.clientHeight || 120);
+
+        if (canvas.width !== Math.floor(width * dpr) || canvas.height !== Math.floor(height * dpr)) {
+          canvas.width = Math.floor(width * dpr);
+          canvas.height = Math.floor(height * dpr);
+        }
+
+        const ctx = canvas.getContext("2d");
+        if (!ctx) return;
+
+        ctx.save();
+        ctx.scale(dpr, dpr);
+
+        ctx.imageSmoothingEnabled = false;
+        ctx.mozImageSmoothingEnabled = false;
+        ctx.webkitImageSmoothingEnabled = false;
+        ctx.msImageSmoothingEnabled = false;
+
+        ctx.clearRect(0, 0, width, height);
+        ctx.fillStyle = "#1e293b";
+        ctx.fillRect(0, 0, width, height);
+
+        const startX = 24;
+        let curX = startX;
+        
+        // Center baseline based on computed dimensions
+        let curY = Math.round((height - compiledAtlasMetadata.font.lineHeight) / 2) + Math.round(compiledAtlasMetadata.font.ascent);
+        
+        // If starting height is too low, fallback to comfortable margin
+        if (curY < 32 || curY > height - 16) {
+          curY = 48;
+        }
+
+        const lineH = compiledAtlasMetadata.font.lineHeight;
+
+        for (let i = 0; i < state.playpenText.length; i++) {
+          const char = state.playpenText[i];
+          if (char === "\n") {
+            curX = startX;
+            curY += lineH;
+            continue;
+          }
+
+          const g = compiledAtlasMetadata.glyphs[char];
+          if (g) {
+            if (g.width > 0 && g.height > 0) {
+              const dx = Math.round(curX + g.offsetX);
+              const dy = Math.round(curY + g.offsetY);
+              ctx.drawImage(sheet, g.x, g.y, g.width, g.height, dx, dy, g.width, g.height);
+            }
+            curX += g.advance;
+          }
+        }
+
+        ctx.restore();
+      }
+
+      // Standalone action event registrations
+      function initStandaloneApp() {
+        // Feed preset codes
+        document.getElementById("custom-chars-input").value = state.characterSet;
+
+        // Custom local TTF File Upload
+        document.getElementById("font-file-input").addEventListener("change", async (e) => {
+          const file = e.target.files[0];
+          if (!file) return;
+
+          try {
+            const buf = await file.arrayBuffer();
+            const rawName = `StandaloneFont_${Date.now()}`;
+            const fontObj = new FontFace(rawName, buf);
+            await fontObj.load();
+            document.fonts.add(fontObj);
+
+            state.fontFamily = rawName;
+            state.customFontLoaded = true;
+
+            const badgeNode = document.getElementById("font-badge");
+            badgeNode.classList.remove("hidden");
+            
+            compileAtlasStandalone();
+          } catch (err) {
+            console.error(err);
+            alert("Error parsing loaded TTF font.");
+          }
+        });
+
+        // Sliders triggers
+        document.getElementById("font-size-range").addEventListener("input", (e) => {
+          state.fontSize = parseInt(e.target.value);
+          document.getElementById("size-val").innerText = `${state.fontSize}px`;
+          compileAtlasStandalone();
+        });
+
+        document.getElementById("line-offset-range").addEventListener("input", (e) => {
+          state.lineHeightOffset = parseInt(e.target.value);
+          document.getElementById("offset-val").innerText = `+${state.lineHeightOffset}px`;
+          compileAtlasStandalone();
+        });
+
+        document.getElementById("standalone-sharpness-range").addEventListener("input", (e) => {
+          state.fontSharpness = parseFloat(e.target.value);
+          document.getElementById("standalone-sharpness-val").innerText = state.fontSharpness === 1.0 ? "Default" : `${state.fontSharpness.toFixed(2)}x`;
+          compileAtlasStandalone();
+        });
+
+        document.getElementById("standalone-stroke-width-range").addEventListener("input", (e) => {
+          state.strokeWidth = parseFloat(e.target.value);
+          document.getElementById("standalone-stroke-val").innerText = state.strokeWidth === 0 ? "None" : `${state.strokeWidth}px`;
+          compileAtlasStandalone();
+        });
+
+        document.getElementById("standalone-stroke-color-picker").addEventListener("input", (e) => {
+          state.strokeColor = e.target.value;
+          document.getElementById("standalone-stroke-color-val").innerText = state.strokeColor.toUpperCase();
+          compileAtlasStandalone();
+        });
+
+        document.getElementById("border-spacing-range").addEventListener("input", (e) => {
+          state.spacing = parseInt(e.target.value);
+          document.getElementById("spacing-val").innerText = `${state.spacing}px`;
+          compileAtlasStandalone();
+        });
+
+        document.getElementById("zoom-slider").addEventListener("input", (e) => {
+          state.zoom = parseInt(e.target.value);
+          document.getElementById("zoom-val").innerText = state.zoom;
+          document.getElementById("canvas-transformer").style.transform = `scale(${state.zoom / 100})`;
+        });
+
+        // Dropdown triggers
+        document.getElementById("font-fallback-select").addEventListener("change", (e) => {
+          if (!state.customFontLoaded) {
+            state.fontFamily = e.target.value;
+            compileAtlasStandalone();
+          }
+        });
+
+        document.getElementById("size-constraint-select").addEventListener("change", (e) => {
+          state.sizeOption = e.target.value;
+          const customWrapper = document.getElementById("custom-res-wrapper");
+          if (state.sizeOption === "custom") {
+            customWrapper.classList.remove("hidden");
+          } else {
+            customWrapper.classList.add("hidden");
+            if (state.sizeOption !== "auto") {
+              state.customWidth = parseInt(state.sizeOption);
+              state.customHeight = parseInt(state.sizeOption);
+            }
+          }
+          compileAtlasStandalone();
+        });
+
+        document.getElementById("custom-res-width").addEventListener("input", (e) => {
+          state.customWidth = Math.max(64, parseInt(e.target.value) || 64);
+          compileAtlasStandalone();
+        });
+
+        document.getElementById("custom-res-height").addEventListener("input", (e) => {
+          state.customHeight = Math.max(64, parseInt(e.target.value) || 64);
+          compileAtlasStandalone();
+        });
+
+        // Presets selection triggers
+        document.querySelectorAll(".preset-btn").forEach(btn => {
+          btn.addEventListener("click", () => {
+            document.querySelectorAll(".preset-btn").forEach(b => {
+              b.className = "preset-btn text-left px-3 py-2 rounded-lg text-xs font-medium cursor-pointer bg-slate-950 border border-slate-800 text-slate-400 hover:text-slate-300";
+            });
+            btn.className = "preset-btn text-left px-3 py-2 rounded-lg text-xs font-medium cursor-pointer bg-indigo-500/10 border border-indigo-400/30 text-indigo-300";
+            
+            const selectedPresetKey = btn.getAttribute("data-preset");
+            if (selectedPresetKey === "ascii") state.characterSet = ASCII_CHARS;
+            else if (selectedPresetKey === "alphanumeric") state.characterSet = ALPHANUMERIC_CHARS;
+            else if (selectedPresetKey === "numbers") state.characterSet = NUMBERS_CHARS;
+            else if (selectedPresetKey === "hiragana") state.characterSet = `${HIRAGANA_CHARS} `;
+            else if (selectedPresetKey === "katakana") state.characterSet = `${KATAKANA_CHARS} `;
+
+            document.getElementById("custom-chars-input").value = state.characterSet;
+            compileAtlasStandalone();
+          });
+        });
+
+        document.getElementById("custom-chars-input").addEventListener("input", (e) => {
+          state.characterSet = e.target.value;
+          compileAtlasStandalone();
+        });
+
+        document.getElementById("playpen-input").addEventListener("input", (e) => {
+          state.playpenText = e.target.value;
+          renderPlaypenCanvas();
+        });
+
+        // Outlines free rect checkbox triggers
+        document.getElementById("toggle-outlines").addEventListener("change", (e) => {
+          state.showOutlines = e.target.checked;
+          renderVisualizerCanvas();
+        });
+
+        document.getElementById("toggle-freerects").addEventListener("change", (e) => {
+          state.showFreeRects = e.target.checked;
+          renderVisualizerCanvas();
+        });
+
+        // Background switches
+        document.querySelectorAll("[data-bg]").forEach(btn => {
+          btn.addEventListener("click", () => {
+            document.querySelectorAll("[data-bg]").forEach(b => {
+              b.className = "bg-btn px-2 py-0.5 rounded cursor-pointer text-[10px] font-medium text-slate-500 hover:text-slate-400";
+            });
+            btn.className = "bg-btn px-2 py-0.5 rounded cursor-pointer text-[10px] font-medium bg-slate-800 text-slate-200";
+            state.atlasBg = btn.getAttribute("data-bg");
+            renderVisualizerCanvas();
+          });
+        });
+
+        // Canvas interactive coordinate clicks
+        document.getElementById("atlas-sheet-canvas").addEventListener("click", (e) => {
+          const canvas = document.getElementById("atlas-sheet-canvas");
+          if (!canvas || !compiledAtlasMetadata) return;
+
+          const rect = canvas.getBoundingClientRect();
+          const clickX = (e.clientX - rect.left) * (calculatedW / rect.width);
+          const clickY = (e.clientY - rect.top) * (calculatedH / rect.height);
+
+          let matched = null;
+          for (const char in compiledAtlasMetadata.glyphs) {
+            const g = compiledAtlasMetadata.glyphs[char];
+            if (g.width > 0 && g.height > 0) {
+              if (clickX >= g.x && clickX <= g.x + g.width && clickY >= g.y && clickY <= g.y + g.height) {
+                matched = char;
+                break;
+              }
+            }
+          }
+
+          state.selectedChar = matched;
+          const inspectorRow = document.getElementById("offline-inspector-row");
+
+          if (matched) {
+            const g = compiledAtlasMetadata.glyphs[matched];
+            inspectorRow.innerHTML = `<div class="flex items-center space-x-4 w-full justify-between">
+              <div class="flex items-center space-x-3.5">
+                <span class="text-blue-400 font-semibold text-sm bg-blue-500/10 px-2.5 py-1 rounded border border-blue-500/20">'${matched}'</span>
+                <span class="text-slate-400">Glyph Metrics:</span>
+              </div>
+              <div class="flex space-x-4 text-slate-300">
+                <span>Bounds: <strong>${g.x}, ${g.y}</strong> (${g.width}x${g.height}px)</span>
+                <span>Bearing offset: <strong>X:${g.offsetX}, Y:${g.offsetY}</strong></span>
+                <span>Advance width: <strong>${g.advance}px</strong></span>
+              </div>
+              <button type="button" id="btn-clear-select" class="text-blue-400 hover:text-blue-300 font-semibold cursor-pointer underline text-[10px]">Clear Select</button>
+            </div>`;
+            document.getElementById("btn-clear-select").addEventListener("click", () => {
+              state.selectedChar = null;
+              renderVisualizerCanvas();
+              inspectorRow.innerHTML = `<div class="flex items-center space-x-2 text-slate-400">
+                <svg class="w-3.5 h-3.5 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15 15l-2 5L9 9l11 4-5 2zm0 0l5 5M7.188 2.239l.777 2.897M5.136 7.965l-2.898-.777M13.95 4.05l-2.122 2.122m-5.657 5.656l-2.12 transition-all" /></svg>
+                <span>Click any character on sheet to inspect precise boundary offsets</span>
+              </div>`;
+            });
+          } else {
+            inspectorRow.innerHTML = `<div class="flex items-center space-x-2 text-slate-400">
+              <svg class="w-3.5 h-3.5 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15 15l-2 5L9 9l11 4-5 2zm0 0l5 5M7.188 2.239l.777 2.897M5.136 7.965l-2.898-.777M13.95 4.05l-2.122 2.122m-5.657 5.656l-2.12 transition-all" /></svg>
+              <span>Click any character on sheet to inspect precise boundary offsets</span>
+            </div>`;
+          }
+          renderVisualizerCanvas();
+        });
+
+        // Trigger Drag-Drop file area interactions
+        const dropZone = document.getElementById("file-drop-zone");
+        dropZone.addEventListener("click", () => {
+          document.getElementById("font-file-input").click();
+        });
+
+        // Download actions
+        window.addEventListener("resize", () => {
+          renderPlaypenCanvas();
+        });
+
+        document.getElementById("btn-download-json").addEventListener("click", () => {
+          if (!compiledAtlasMetadata) return;
+
+          // Convert glyphs map to a clean array of glyphs (removing the external key to prevent redundancy)
+          const exportData = {
+            font: compiledAtlasMetadata.font,
+            glyphs: Object.values(compiledAtlasMetadata.glyphs),
+            kernings: compiledAtlasMetadata.kernings
+          };
+
+          const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: "application/json" });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement("a");
+          a.href = url;
+          a.download = `font_atlas_${state.fontSize}px.json`;
+          a.click();
+          URL.revokeObjectURL(url);
+        });
+
+        document.getElementById("btn-download-xml").addEventListener("click", () => {
+          if (!compiledAtlasMetadata) return;
+
+          const escapeXml = (unsafe) => {
+            return unsafe.replace(/[<>&'"]/g, (c) => {
+              switch (c) {
+                case '<': return '&lt;';
+                case '>': return '&gt;';
+                case '&': return '&amp;';
+                case '\'': return '&apos;';
+                case '"': return '&quot;';
+                default: return c;
+              }
+            });
+          };
+
+          let xml = '<?xml version="1.0" encoding="utf-8" ?>\n';
+          xml += '<FontAtlas>\n';
+          xml += `  <Font Family="${escapeXml(compiledAtlasMetadata.font.family)}" Size="${compiledAtlasMetadata.font.size}" LineHeight="${compiledAtlasMetadata.font.lineHeight}" Ascent="${compiledAtlasMetadata.font.ascent}" Descent="${compiledAtlasMetadata.font.descent}" />\n`;
+          xml += '  <Glyphs>\n';
+
+          for (const key of Object.keys(compiledAtlasMetadata.glyphs)) {
+            const g = compiledAtlasMetadata.glyphs[key];
+            xml += `    <Glyph Char="${escapeXml(g.char)}" X="${g.x}" Y="${g.y}" Width="${g.width}" Height="${g.height}" OffsetX="${g.offsetX}" OffsetY="${g.offsetY}" Advance="${g.advance}" />\n`;
+          }
+
+          xml += '  </Glyphs>\n';
+
+          if (compiledAtlasMetadata.kernings && compiledAtlasMetadata.kernings.length > 0) {
+            xml += '  <Kernings>\n';
+            for (const k of compiledAtlasMetadata.kernings) {
+              xml += `    <Kerning First="${escapeXml(k.first)}" Second="${escapeXml(k.second)}" Amount="${k.amount}" />\n`;
+            }
+            xml += '  </Kernings>\n';
+          }
+
+          xml += '</FontAtlas>\n';
+
+          const blob = new Blob([xml], { type: "application/xml" });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement("a");
+          a.href = url;
+          a.download = `font_atlas_${state.fontSize}px.xml`;
+          a.click();
+          URL.revokeObjectURL(url);
+        });
+
+        document.getElementById("btn-download-dat").addEventListener("click", () => {
+          if (!compiledAtlasMetadata) return;
+
+          const encoder = new TextEncoder();
+          
+          const glyphKeys = Object.keys(compiledAtlasMetadata.glyphs);
+          const glyphsCount = glyphKeys.length;
+          
+          const glyphEncodedList = glyphKeys.map((key) => {
+            const g = compiledAtlasMetadata.glyphs[key];
+            const charBytes = encoder.encode(g.char);
+            return {
+              charBytes,
+              g,
+            };
+          });
+
+          const validKernings = (compiledAtlasMetadata.kernings || []).map(k => {
+            const firstIndex = glyphKeys.indexOf(k.first);
+            const secondIndex = glyphKeys.indexOf(k.second);
+            return {
+              firstIndex,
+              secondIndex,
+              amount: k.amount,
+            };
+          }).filter(k => k.firstIndex !== -1 && k.secondIndex !== -1);
+
+          let totalBytes = 4 + 2; 
+          for (const item of glyphEncodedList) {
+            totalBytes += 1 + item.charBytes.length + 7;
+          }
+
+          const hasKernings = validKernings.length > 0;
+          if (hasKernings) {
+            totalBytes += 2; // kerningsCount (UInt16)
+            totalBytes += validKernings.length * 5; // each is firstIndex (2B) + secondIndex (2B) + amount (1B)
+          }
+
+          const buffer = new ArrayBuffer(totalBytes);
+          const view = new DataView(buffer);
+          
+          let offset = 0;
+
+          // font metadata (signed bytes)
+          view.setInt8(offset, compiledAtlasMetadata.font.size);
+          offset += 1;
+          view.setInt8(offset, compiledAtlasMetadata.font.lineHeight);
+          offset += 1;
+          view.setInt8(offset, compiledAtlasMetadata.font.ascent);
+          offset += 1;
+          view.setInt8(offset, compiledAtlasMetadata.font.descent);
+          offset += 1;
+
+          // glyphsCount (UInt16, Little Endian)
+          view.setUint16(offset, glyphsCount, true);
+          offset += 2;
+
+          // glyphs list
+          for (const item of glyphEncodedList) {
+            view.setUint8(offset, item.charBytes.length);
+            offset += 1;
+            for (let i = 0; i < item.charBytes.length; i++) {
+              view.setUint8(offset + i, item.charBytes[i]);
+            }
+            offset += item.charBytes.length;
+
+            // x, y, width, height, offsetX, offsetY, advance (signed bytes)
+            view.setInt8(offset, item.g.x);
+            offset += 1;
+            view.setInt8(offset, item.g.y);
+            offset += 1;
+            view.setInt8(offset, item.g.width);
+            offset += 1;
+            view.setInt8(offset, item.g.height);
+            offset += 1;
+            view.setInt8(offset, item.g.offsetX);
+            offset += 1;
+            view.setInt8(offset, item.g.offsetY);
+            offset += 1;
+            view.setInt8(offset, item.g.advance);
+            offset += 1;
+          }
+
+          // Write kerning data if it exists
+          if (hasKernings) {
+            // kerningsCount (UInt16, Little Endian)
+            view.setUint16(offset, validKernings.length, true);
+            offset += 2;
+
+            for (const k of validKernings) {
+              // firstIndex (UInt16, Little Endian)
+              view.setUint16(offset, k.firstIndex, true);
+              offset += 2;
+              // secondIndex (UInt16, Little Endian)
+              view.setUint16(offset, k.secondIndex, true);
+              offset += 2;
+              // amount (Int8)
+              view.setInt8(offset, k.amount);
+              offset += 1;
+            }
+          }
+
+          const blob = new Blob([buffer], { type: "application/octet-stream" });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement("a");
+          a.href = url;
+          a.download = `font_atlas_${state.fontSize}px.dat`;
+          a.click();
+          URL.revokeObjectURL(url);
+        });
+
+        document.getElementById("btn-download-png").addEventListener("click", () => {
+          const exportCanvas = document.createElement("canvas");
+          exportCanvas.width = calculatedW;
+          exportCanvas.height = calculatedH;
+          const ctx = exportCanvas.getContext("2d");
+          if (!ctx || !compiledAtlasMetadata) return;
+
+          ctx.clearRect(0,0, calculatedW, calculatedH);
+          const scanCanvas = document.createElement("canvas");
+          const dim = Math.max(128, Math.ceil(state.fontSize * 5));
+          scanCanvas.width = dim;
+          scanCanvas.height = dim;
+          const scanCtx = scanCanvas.getContext("2d");
+
+          for (const char in compiledAtlasMetadata.glyphs) {
+            const g = compiledAtlasMetadata.glyphs[char];
+            if (g.width === 0 || g.height === 0) continue;
+
+            scanCtx.clearRect(0, 0, dim, dim);
+            scanCtx.font = `${state.fontSize}px ${state.fontFamily}`;
+            scanCtx.fillStyle = "#ffffff";
+            scanCtx.textBaseline = "alphabetic";
+
+            const scanX = Math.ceil(dim * 0.3);
+            const scanY = Math.ceil(dim * 0.65);
+
+            if (state.strokeWidth > 0) {
+              scanCtx.strokeStyle = state.strokeColor;
+              scanCtx.lineWidth = state.strokeWidth * 2;
+              scanCtx.lineJoin = "round";
+              scanCtx.strokeText(char, scanX, scanY);
+            }
+            scanCtx.fillText(char, scanX, scanY);
+
+            const sx = scanX + g.offsetX;
+            const sy = scanY + g.offsetY;
+
+            // Apply real-time alpha sharpness correction on cropped sub-rectangle
+            if (state.fontSharpness !== 1.0) {
+              try {
+                const imgData = scanCtx.getImageData(sx, sy, g.width, g.height);
+                const dData = imgData.data;
+                for (let i = 3; i < dData.length; i += 4) {
+                  const val = dData[i];
+                  if (val > 0) {
+                    const normal = val / 255;
+                    let nA = Math.pow(normal, state.fontSharpness) * 255;
+                    if (state.fontSharpness > 1.1) {
+                      if (normal > 0.5) {
+                        nA = Math.min(255, nA * 1.1);
+                      } else {
+                        nA = nA * 0.9;
+                      }
+                    }
+                    dData[i] = Math.min(255, Math.max(0, Math.round(nA)));
+                  }
+                }
+                scanCtx.putImageData(imgData, sx, sy);
+              } catch (e) {
+                console.error("Failed to apply sharpness standalone export", e);
+              }
+            }
+
+            ctx.drawImage(scanCanvas, sx, sy, g.width, g.height, g.x, g.y, g.width, g.height);
+          }
+
+          const a = document.createElement("a");
+          a.href = exportCanvas.toDataURL("image/png");
+          a.download = `font_atlas_${state.fontSize}px.png`;
+          a.click();
+        });
+
+        // Initialize compiler
+        compileAtlasStandalone();
+      }
+
+      // Hide standalone layout if React handles rendering successfully dynamically
+      window.addEventListener("DOMContentLoaded", () => {
+        // Detect after 400ms if React injected successfully, otherwise run native standalone initialize
+        setTimeout(() => {
+          const reactRootElement = document.getElementById("root");
+          if (reactRootElement && reactRootElement.children.length > 0) {
+            // React mounts successfully, turn off visual standalone layout wrapper inside HTML
+            document.getElementById("standalone-app-root").style.display = "none";
+          } else {
+            // No react, trigger and wire standalone vanilla scripts
+            initStandaloneApp();
+          }
+        }, 350);
+      });
+    </script>
+
+    <!-- React client script bundle mount (Vite standard flow) -->
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
