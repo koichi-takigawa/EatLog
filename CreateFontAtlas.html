@@ -1401,7 +1401,7 @@ Scale 12px works pristine.
 
           let totalBytes = 4 + 2; 
           for (const item of glyphEncodedList) {
-            totalBytes += 1 + item.charBytes.length + 7;
+            totalBytes += 1 + item.charBytes.length + 9;
           }
 
           const hasKernings = validKernings.length > 0;
@@ -1438,14 +1438,14 @@ Scale 12px works pristine.
             }
             offset += item.charBytes.length;
 
-            // x, y, width, height, offsetX, offsetY, advance (signed bytes)
-            view.setInt8(offset, item.g.x);
+            // x, y (UInt16, Little Endian), width, height (UInt8), offsetX, offsetY, advance (Int8)
+            view.setUint16(offset, item.g.x, true);
+            offset += 2;
+            view.setUint16(offset, item.g.y, true);
+            offset += 2;
+            view.setUint8(offset, item.g.width);
             offset += 1;
-            view.setInt8(offset, item.g.y);
-            offset += 1;
-            view.setInt8(offset, item.g.width);
-            offset += 1;
-            view.setInt8(offset, item.g.height);
+            view.setUint8(offset, item.g.height);
             offset += 1;
             view.setInt8(offset, item.g.offsetX);
             offset += 1;
