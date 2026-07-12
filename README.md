@@ -1,11 +1,32 @@
 # ごちゃごちゃパック
 
+## リンク
+
+### 生活系
+
+- [ImageDiff](#imagediff)  
+  ２～４枚の画像を比較表示
+- [OneThirdBlender](#onethirdblender)  
+  1/3ブレンダー
 
 ## ImageDiff
 
-２～４枚の画像を比較表示する。  
+２～４枚の画像を比較表示する。拡縮・移動可能。  
 Studi○Aliceで見かける感じのやつ。
 
 [ImageDiff](imagediff.html)
 
-![Image Diff 動作イメージ](docimages/imagediff.png)
+![動作イメージ](docimages/imagediff.png)
+
+## OneThirdBlender
+
+1/3ブレンダー。  
+****.webp と ****_2.webp を合成して1枚の画像を作る。  
+国旗とか作る時に使えるのかも？
+
+[OneThirdBlender](onethirdblender.html)
+
+![動作イメージ](docimages/onethirdblender.png)
+
+用意する画像：  
+![引数](docimages/onethirdblender_needimage.png)

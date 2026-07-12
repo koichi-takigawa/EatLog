@@ -1,0 +1,232 @@
+﻿<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>画像合成ツール (High Quality WebP Merger) - Dark Mode</title>
+    <style>
+        body {
+            font-family: 'Helvetica Neue', Arial, sans-serif;
+            max-width: 800px;
+            margin: 40px auto;
+            padding: 0 20px;
+            background-color: #1e2530; /* 深みのあるダーク背景 */
+            color: #e2e8f0; /* 明るめのテキストカラー */
+        }
+        h1 {
+            text-align: center;
+            color: #f8fafc;
+        }
+        .upload-container {
+            border: 3px dashed #3b82f6; /* 鮮やかなブルーの境界線 */
+            border-radius: 12px;
+            padding: 50px 40px;
+            text-align: center;
+            background: #252f3f; /* コンテナ背景 */
+            cursor: pointer;
+            transition: all 0.25s ease;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3);
+        }
+        .upload-container:hover {
+            background: #2d394d;
+            border-color: #60a5fa;
+        }
+        #fileInput {
+            display: none;
+        }
+        .status {
+            margin-top: 25px;
+            font-weight: bold;
+            text-align: center;
+            color: #60a5fa;
+        }
+        #log {
+            margin-top: 20px;
+            background: #0f172a; /* ログボックスをさらに暗く */
+            color: #38bdf8; /* サイバー感のあるライトブルー */
+            padding: 18px;
+            border-radius: 8px;
+            max-height: 250px;
+            overflow-y: auto;
+            font-family: 'Fira Code', Consolas, monospace;
+            font-size: 13px;
+            border: 1px solid #1e293b;
+            box-shadow: inset 0 2px 4px rgba(0,0,0,0.5);
+        }
+        code {
+            background: #334155;
+            padding: 2px 6px;
+            border-radius: 4px;
+            color: #f1f5f9;
+            font-family: monospace;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>画像合成ツール（1/3ブレンド）</h1>
+    <p style="text-align: center; color: #94a3b8; font-size: 15px; line-height: 1.6;">
+        <code>****.webp</code> と <code>****_2.webp</code> のペアを複数まとめて選択、またはここにドロップしてください。<br>
+        上下一部（各1/3）を無印、中央（1/3）を「_2」から合成し、最高画質で <code>****_merged.webp</code> を自動保存します。
+    </p>
+
+    <div class="upload-container" id="dropZone" onclick="document.getElementById('fileInput').click()">
+        <p style="font-size: 18px; margin-bottom: 8px; color: #f8fafc;">ここに画像ファイルをまとめてドラッグ＆ドロップ</p>
+        <p style="font-size: 14px; color: #94a3b8; margin: 0;">または、ここをクリックしてファイルを選択</p>
+        <input type="file" id="fileInput" multiple accept=".webp">
+    </div>
+
+    <div class="status" id="statusText">ファイルを待機中...</div>
+    <div id="log"></div>
+
+    <script>
+        const dropZone = document.getElementById('dropZone');
+        const fileInput = document.getElementById('fileInput');
+        const statusText = document.getElementById('statusText');
+        const logBox = document.getElementById('log');
+
+        // ログ出力用（文字色をダークモード向けに調整）
+        function log(message, type = 'info') {
+            const p = document.createElement('p');
+            p.style.margin = '5px 0';
+            p.textContent = message;
+            
+            if (type === 'error') {
+                p.style.color = '#f87171'; // 赤
+            } else if (type === 'success') {
+                p.style.color = '#4ade80'; // 緑
+            } else if (type === 'skip') {
+                p.style.color = '#fbbf24'; // 黄
+            } else {
+                p.style.color = '#38bdf8'; // 通常の青
+            }
+            
+            logBox.appendChild(p);
+            logBox.scrollTop = logBox.scrollHeight;
+        }
+
+        // ドラッグ&ドロップのイベント制御
+        ['dragenter', 'dragover'].forEach(eventName => {
+            dropZone.addEventListener(eventName, (e) => { e.preventDefault(); dropZone.style.background = '#2d394d'; }, false);
+        });
+        ['dragleave', 'drop'].forEach(eventName => {
+            dropZone.addEventListener(eventName, (e) => { e.preventDefault(); dropZone.style.background = '#252f3f'; }, false);
+        });
+
+        dropZone.addEventListener('drop', (e) => {
+            const files = e.dataTransfer.files;
+            if (files.length > 0) handleFiles(files);
+        });
+
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length > 0) handleFiles(e.target.files);
+        });
+
+        // ファイル処理のメインロジック
+        async function handleFiles(fileList) {
+            const files = Array.from(fileList);
+            logBox.innerHTML = '';
+            statusText.textContent = "処理中...";
+
+            // ファイルをペアリングする (****.webp と ****_2.webp)
+            const baseFiles = {};
+            const subFiles = {};
+
+            files.forEach(file => {
+                if (!file.name.endsWith('.webp')) return;
+                const nameWithoutExt = file.name.slice(0, -5); // .webpを消す
+
+                if (nameWithoutExt.endsWith('_2')) {
+                    const baseName = nameWithoutExt.slice(0, -2);
+                    subFiles[baseName] = file;
+                } else {
+                    baseFiles[nameWithoutExt] = file;
+                }
+            });
+
+            // ペアが揃っているものを順次合成
+            let successCount = 0;
+            const baseNames = Object.keys(baseFiles);
+
+            for (const baseName of baseNames) {
+                if (subFiles[baseName]) {
+                    log(`ペアを発見しました: ${baseName}.webp + ${baseName}_2.webp`, 'info');
+                    try {
+                        await mergeImages(baseFiles[baseName], subFiles[baseName], baseName);
+                        successCount++;
+                    } catch (err) {
+                        log(`[エラー] ${baseName} の合成に失敗しました: ${err.message}`, 'error');
+                    }
+                } else {
+                    log(`[スキップ] ${baseName}.webp に対する _2.webp が見つかりません。`, 'skip');
+                }
+            }
+
+            statusText.textContent = `完了！ ${successCount} 個の画像を合成してダウンロードしました。`;
+            statusText.style.color = '#4ade80'; // 完了時はグリーンに
+        }
+
+        // 画像ロード用プロミス
+        function loadImage(file) {
+            return new Promise((resolve, reject) => {
+                const img = new Image();
+                img.onload = () => resolve(img);
+                img.onerror = () => reject(new Error("画像の読み込みに失敗しました。"));
+                img.src = URL.createObjectURL(file);
+            });
+        }
+
+        // 2つの画像を合成するコア処理（黒線対策・整数計算版）
+        async function mergeImages(file1, file2, outputName) {
+            const img1 = await loadImage(file1);
+            const img2 = await loadImage(file2);
+
+            const width = img1.naturalWidth;
+            const height = img1.naturalHeight;
+
+            // 小数点が出ないように、整数（Math.floor）で境界点を計算する
+            const h1 = Math.floor(height / 3);
+            const h2 = Math.floor((height / 3) * 2);
+
+            // オフスクリーンCanvasを作成
+            const canvas = document.createElement('canvas');
+            canvas.width = width;
+            canvas.height = height;
+            const ctx = canvas.getContext('2d');
+
+            // アンチエイリアスによる隙間を防ぐ
+            ctx.imageSmoothingEnabled = false; 
+
+            // 1. 上のパート (0 ～ h1)
+            // 隙間を防ぐため、縦幅を「+1ピクセル」多く描画して糊代（のりしろ）を作ります
+            ctx.drawImage(img1, 0, 0, width, h1, 0, 0, width, h1 + 1);
+
+            // 2. 真ん中のパート (h1 ～ h2)
+            // 上下ともに「1ピクセル」広げて重ねて描画します
+            ctx.drawImage(img2, 0, h1, width, h2 - h1, 0, h1 - 1, width, (h2 - h1) + 2);
+
+            // 3. 下のパート (h2 ～ 末尾)
+            // 上側を「1ピクセル」広げて重ねて描画します
+            ctx.drawImage(img1, 0, h2, width, height - h2, 0, h2 - 1, width, (height - h2) + 1);
+
+            // 最高画質 (品質: 1.0) でWebPのBlobを生成
+            return new Promise((resolve) => {
+                canvas.toBlob((blob) => {
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `${outputName}_merged.webp`;
+                    document.body.appendChild(a);
+                    a.click();
+                    
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+                    
+                    log(`[成功] -> ${outputName}_merged.webp を保存しました。`, 'success');
+                    resolve();
+                }, 'image/webp', 1.0);
+            });
+        }
+    </script>
+</body>
+</html>
