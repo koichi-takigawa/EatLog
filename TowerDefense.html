@@ -122,6 +122,7 @@
     // - shield / regenPerSec: バリア量・毎秒回復
     // - exCost / exCooldownMs: EXスキルのコストとクールダウン
     // - tags: ['front','back','support'] のような編成タグ
+    // - skillIds: ['sample.berserk'] のようなスキルID配列
     return [
       { id: 'ally01', name: 'シロコ',   cost: 10, color: '#84d8ff', maxHp: 120, atk: 22, atkIntervalMs: 780,  minRange: 2, maxRange: 3, role: 'attacker', mark: '白', blockCap: 1 },
       { id: 'ally02', name: 'ユウカ',   cost: 10, color: '#8fe1e6', maxHp: 230, atk: 14, atkIntervalMs: 930,  minRange: 1, maxRange: 1, role: 'attacker', mark: '優', blockCap: 3 },
@@ -153,6 +154,47 @@
   const ROSTER_SIZE = 10;
   const selectedRosterIds = new Set(allyCatalog.slice(0, ROSTER_SIZE).map(u => u.id));
   let selectedRoster = allyCatalog.filter(u => selectedRosterIds.has(u.id));
+
+  // =========================================================
+  // Skill registry (minimal scaffold)
+  // =========================================================
+  // 使い方:
+  // 1) ユニット定義に skillIds: ['sample.berserk'] を追加
+  // 2) skillRegistry に対応するスキル実装を登録
+  // 3) onSpawn/onBeforeAttack/onAfterAttack/onBeforeHeal/onAfterHeal が呼ばれる
+  const skillRegistry = {
+    // 例: HP50%未満時に与ダメ20%アップ（設定したユニットのみ有効）
+    'sample.berserk': {
+      onBeforeAttack(ctx) {
+        if (!ctx || !ctx.ally || ctx.ally.maxHp <= 0) return;
+        if (ctx.ally.hp / ctx.ally.maxHp < 0.5) {
+          ctx.damage *= 1.2;
+        }
+      }
+    }
+  };
+
+  function createSkillContext(extra = {}) {
+    return {
+      alliesOnMap,
+      enemies,
+      addCombatLine,
+      addFloatingText,
+      hexDistance,
+      clamp,
+      ...extra
+    };
+  }
+
+  function runUnitSkillEvent(unit, eventName, ctx) {
+    if (!unit || !Array.isArray(unit.skillIds) || unit.skillIds.length === 0) return;
+    for (const skillId of unit.skillIds) {
+      const skill = skillRegistry[skillId];
+      if (!skill) continue;
+      const handler = skill[eventName];
+      if (typeof handler === 'function') handler(ctx);
+    }
+  }
 
   function getPlayableCatalog() {
     return selectedRoster;
@@ -1292,9 +1334,15 @@
             if (!t) break;
 
             const beforeHp = t.hp;
-            const dealt = Math.min(a.atk, Math.max(0, beforeHp));
+            const attackCtx = createSkillContext({ ally: a, target: t, damage: a.atk, dt });
+            runUnitSkillEvent(a, 'onBeforeAttack', attackCtx);
+
+            const rawDamage = Math.max(0, attackCtx.damage || 0);
+            const dealt = Math.min(rawDamage, Math.max(0, beforeHp));
             t.hp = beforeHp - dealt;
             totalDamageDealt += dealt;
+
+            runUnitSkillEvent(a, 'onAfterAttack', createSkillContext({ ally: a, target: t, dealt, dt }));
 
             addFloatingText(t.toQ, t.toR, `-${dealt}`, '#ffd166');
             addCombatLine(a.q, a.r, t.toQ, t.toR, 'rgba(120,220,255,{a})', 2.8);
@@ -1316,9 +1364,14 @@
             const t = friends[0];
             if (!t) break;
 
+            const healCtx = createSkillContext({ ally: a, target: t, amount: a.heal || 0, dt });
+            runUnitSkillEvent(a, 'onBeforeHeal', healCtx);
+
             const before = t.hp;
-            t.hp = Math.min(t.maxHp, t.hp + a.heal);
+            const amount = Math.max(0, healCtx.amount || 0);
+            t.hp = Math.min(t.maxHp, t.hp + amount);
             const healed = t.hp - before;
+            runUnitSkillEvent(a, 'onAfterHeal', createSkillContext({ ally: a, target: t, healed, dt }));
             if (healed > 0) {
               addFloatingText(t.q, t.r, `+${healed}`, '#6ecbff'); // 青っぽい回復文字
             }
@@ -1455,7 +1508,7 @@
     if (u && point >= u.cost) {
       const h = screenToHex(p.x, p.y);
       if (canPlaceAlly(h.q, h.r)) {
-        alliesOnMap.push({
+        const newAlly = {
           q: h.q,
           r: h.r,
           typeId: u.id,
@@ -1475,10 +1528,13 @@
 
           atk: u.atk || 0,
           heal: u.heal || 0,
+          skillIds: Array.isArray(u.skillIds) ? [...u.skillIds] : [],
 
           atkIntervalMs: u.atkIntervalMs,
           atkTimerMs: 0
-        });
+        };
+        alliesOnMap.push(newAlly);
+        runUnitSkillEvent(newAlly, 'onSpawn', createSkillContext({ ally: newAlly }));
         point -= u.cost;
       }
     }

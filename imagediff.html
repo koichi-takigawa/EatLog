@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>マルチ画像 同期ズーム・スクロール</title>
+<style>
+    body {
+        margin: 0;
+        padding: 0;
+        display: flex;
+        flex-direction: column;
+        height: 100vh;
+        overflow: hidden;
+        font-family: sans-serif;
+        background-color: #333;
+        color: #eee;
+    }
+
+    #controls {
+        padding: 10px;
+        background: #222;
+        border-bottom: 1px solid #444;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+
+    #image-container {
+        flex: 1;
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 2px;
+        padding: 2px;
+        overflow: hidden;
+        user-select: none;
+    }
+
+    .image-wrapper {
+        position: relative;
+        overflow: hidden;
+        background-color: #1a1a1a;
+        cursor: grab;
+    }
+    .image-wrapper.grabbing {
+        cursor: grabbing;
+    }
+
+    .viewport-img {
+        position: absolute;
+        top: 0;
+        left: 0;
+        pointer-events: none;
+        transform-origin: 0 0;
+        will-change: transform;
+    }
+
+    .file-name-badge {
+        position: absolute;
+        top: 8px;
+        left: 8px;
+        background: rgba(0, 0, 0, 0.75);
+        color: #fff;
+        padding: 4px 10px;
+        border-radius: 4px;
+        font-size: 13px;
+        pointer-events: none;
+        z-index: 10;
+        max-width: calc(100% - 32px);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.5);
+    }
+</style>
+</head>
+<body>
+
+<div id="controls">
+    <input type="file" id="file-input" multiple accept="image/*">
+    <button onclick="resetView()">ビューをリセット</button>
+</div>
+
+<div id="image-container">
+    <!-- 画像はここにJavaScriptで追加されます -->
+</div>
+
+<script>
+    const fileInput = document.getElementById('file-input');
+    const container = document.getElementById('image-container');
+
+    let activeImages = [];
+
+    let state = {
+        scale: 1,
+        originX: 0,
+        originY: 0
+    };
+
+    let drag = {
+        isDragging: false,
+        lastX: 0,
+        lastY: 0
+    };
+
+    fileInput.addEventListener('change', handleFileSelect);
+
+    function handleFileSelect(event) {
+        const files = event.target.files;
+        if (files.length < 2) {
+            alert('画像を2枚以上（最大4枚推奨）選択してください。');
+            return;
+        }
+
+        container.innerHTML = '';
+        activeImages = [];
+        resetState();
+
+        const numFiles = Math.min(files.length, 4);
+
+        if (numFiles === 2) {
+            container.style.gridTemplateColumns = 'repeat(2, 1fr)';
+            container.style.gridTemplateRows = 'repeat(1, 1fr)';
+        } else if (numFiles >= 3) {
+            container.style.gridTemplateColumns = 'repeat(2, 1fr)';
+            container.style.gridTemplateRows = 'repeat(2, 1fr)';
+        }
+
+        let loadedCount = 0;
+        for (let i = 0; i < numFiles; i++) {
+            const file = files[i];
+            const reader = new FileReader();
+
+            reader.onload = (function(theFile) {
+                return function(e) {
+                    const wrapper = document.createElement('div');
+                    wrapper.className = 'image-wrapper';
+
+                    const badge = document.createElement('div');
+                    badge.className = 'file-name-badge';
+                    badge.textContent = theFile.name;
+                    wrapper.appendChild(badge);
+
+                    const img = new Image();
+                    img.src = e.target.result;
+                    img.className = 'viewport-img';
+                    
+                    wrapper.appendChild(img);
+                    container.appendChild(wrapper);
+
+                    const imgObj = {
+                        img: img,
+                        wrapper: wrapper,
+                        naturalWidth: 0,
+                        naturalHeight: 0
+                    };
+
+                    img.onload = function() {
+                        imgObj.naturalWidth = img.naturalWidth;
+                        imgObj.naturalHeight = img.naturalHeight;
+                        loadedCount++;
+
+                        if (loadedCount === numFiles) {
+                            initializeView();
+                        }
+                    };
+
+                    activeImages.push(imgObj);
+                    addEventListeners(wrapper);
+                };
+            })(file);
+
+            reader.readAsDataURL(file);
+        }
+    }
+
+    function addEventListeners(wrapper) {
+        wrapper.addEventListener('wheel', handleWheel, { passive: false });
+        wrapper.addEventListener('mousedown', handleMouseDown);
+        window.addEventListener('mousemove', handleMouseMove);
+        window.addEventListener('mouseup', handleMouseUp);
+        
+        wrapper.addEventListener('touchstart', handleTouchStart, { passive: false });
+        window.addEventListener('touchmove', handleTouchMove, { passive: false });
+        window.addEventListener('touchend', handleTouchEnd);
+    }
+
+    function resetState() {
+        state.scale = 1;
+        state.originX = 0;
+        state.originY = 0;
+    }
+
+    function resetView() {
+        if (activeImages.length === 0) return;
+        resetState();
+        initializeView();
+    }
+
+    function initializeView() {
+        if (activeImages.length === 0) return;
+
+        const refImg = activeImages[0];
+        const wrapperW = refImg.wrapper.clientWidth;
+        const wrapperH = refImg.wrapper.clientHeight;
+
+        const scaleW = wrapperW / refImg.naturalWidth;
+        const scaleH = wrapperH / refImg.naturalHeight;
+        state.scale = Math.min(scaleW, scaleH);
+
+        state.originX = (wrapperW - refImg.naturalWidth * state.scale) / 2;
+        state.originY = (wrapperH - refImg.naturalHeight * state.scale) / 2;
+
+        updateTransform();
+    }
+
+    function updateTransform() {
+        activeImages.forEach(imgObj => {
+            imgObj.img.style.transform = `translate(${state.originX}px, ${state.originY}px) scale(${state.scale})`;
+        });
+    }
+
+    // ズーム処理（修正：e.currentTarget を使用して操作中の枠を基準にする）
+    function handleWheel(e) {
+        if (activeImages.length === 0) return;
+        e.preventDefault();
+
+        // 操作が行われた画像枠の絶対座標を取得
+        const rect = e.currentTarget.getBoundingClientRect();
+        const offsetX = e.clientX - rect.left;
+        const offsetY = e.clientY - rect.top;
+
+        const imageX = (offsetX - state.originX) / state.scale;
+        const imageY = (offsetY - state.originY) / state.scale;
+
+        const delta = -e.deltaY;
+        const zoomFactor = delta > 0 ? 1.1 : 0.9;
+        const newScale = Math.max(0.1, Math.min(state.scale * zoomFactor, 20));
+
+        state.originX = offsetX - imageX * newScale;
+        state.originY = offsetY - imageY * newScale;
+        state.scale = newScale;
+
+        updateTransform();
+    }
+
+    function handleMouseDown(e) {
+        if (activeImages.length === 0) return;
+        drag.isDragging = true;
+        drag.lastX = e.clientX;
+        drag.lastY = e.clientY;
+        activeImages.forEach(img => img.wrapper.classList.add('grabbing'));
+    }
+
+    function handleMouseMove(e) {
+        if (!drag.isDragging) return;
+        e.preventDefault();
+
+        const deltaX = e.clientX - drag.lastX;
+        const deltaY = e.clientY - drag.lastY;
+
+        state.originX += deltaX;
+        state.originY += deltaY;
+
+        drag.lastX = e.clientX;
+        drag.lastY = e.clientY;
+
+        updateTransform();
+    }
+
+    function handleMouseUp() {
+        drag.isDragging = false;
+        activeImages.forEach(img => img.wrapper.classList.remove('grabbing'));
+    }
+
+    // タッチ操作用（修正：e.currentTarget を使用）
+    let initialPinchDistance = 0;
+    let initialPinchScale = 1;
+    let pinchCenterImageX = 0;
+    let pinchCenterImageY = 0;
+
+    function getDistance(touches) {
+        const dx = touches[0].clientX - touches[1].clientX;
+        const dy = touches[0].clientY - touches[1].clientY;
+        return Math.sqrt(dx * dx + dy * dy);
+    }
+
+    function getPinchCenter(touches) {
+        return {
+            x: (touches[0].clientX + touches[1].clientX) / 2,
+            y: (touches[0].clientY + touches[1].clientY) / 2
+        };
+    }
+
+    function handleTouchStart(e) {
+        if (activeImages.length === 0) return;
+
+        if (e.touches.length === 1) {
+            drag.isDragging = true;
+            drag.lastX = e.touches[0].clientX;
+            drag.lastY = e.touches[0].clientY;
+        } else if (e.touches.length === 2) {
+            e.preventDefault();
+            drag.isDragging = false;
+
+            const center = getPinchCenter(e.touches);
+            // 操作が行われた枠を基準にする
+            const rect = e.currentTarget.getBoundingClientRect();
+            const offsetX = center.x - rect.left;
+            const offsetY = center.y - rect.top;
+
+            pinchCenterImageX = (offsetX - state.originX) / state.scale;
+            pinchCenterImageY = (offsetY - state.originY) / state.scale;
+
+            initialPinchDistance = getDistance(e.touches);
+            initialPinchScale = state.scale;
+        }
+    }
+
+    function handleTouchMove(e) {
+        if (activeImages.length === 0) return;
+
+        if (e.touches.length === 1 && drag.isDragging) {
+            const deltaX = e.touches[0].clientX - drag.lastX;
+            const deltaY = e.touches[0].clientY - drag.lastY;
+
+            state.originX += deltaX;
+            state.originY += deltaY;
+
+            drag.lastX = e.touches[0].clientX;
+            drag.lastY = e.touches[0].clientY;
+
+            updateTransform();
+        } else if (e.touches.length === 2) {
+            e.preventDefault();
+
+            const currentDistance = getDistance(e.touches);
+            if (currentDistance === 0 || initialPinchDistance === 0) return;
+
+            const pinchFactor = currentDistance / initialPinchDistance;
+            const newScale = Math.max(0.1, Math.min(initialPinchScale * pinchFactor, 20));
+
+            const center = getPinchCenter(e.touches);
+            // 操作が行われた枠を基準にする
+            const rect = e.currentTarget.getBoundingClientRect();
+            const offsetX = center.x - rect.left;
+            const offsetY = center.y - rect.top;
+
+            state.originX = offsetX - pinchCenterImageX * newScale;
+            state.originY = offsetY - pinchCenterImageY * newScale;
+            state.scale = newScale;
+
+            updateTransform();
+        }
+    }
+
+    function handleTouchEnd(e) {
+        if (e.touches.length === 0) {
+            drag.isDragging = false;
+        } else if (e.touches.length === 1) {
+            drag.isDragging = true;
+            drag.lastX = e.touches[0].clientX;
+            drag.lastY = e.touches[0].clientY;
+        }
+    }
+
+    window.addEventListener('resize', () => {
+        if (activeImages.length > 0) {
+            setTimeout(initializeView, 100);
+        }
+    });
+</script>
+</body>
+</html>
