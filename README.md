@@ -9,6 +9,11 @@
 - [OneThirdBlender](#onethirdblender)  
   1/3ブレンダー
 
+### 制作系
+
+- [ColorPicker]()  
+  色確認ツール
+
 ## ImageDiff
 
 ２～４枚の画像を比較表示する。拡縮・移動可能。  
@@ -30,3 +35,11 @@ Studi○Aliceで見かける感じのやつ。
 
 用意する画像：  
 ![引数](docimages/onethirdblender_needimage.png)
+
+## ColorPicker
+
+指定位置の色を表示するツール。
+
+[ColorPicker](ColorPicker.html)
+
+![動作イメージ](docimages/colorpicker.png)

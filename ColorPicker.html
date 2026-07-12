@@ -1,0 +1,546 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>画像カラーピッカー</title>
+    <style>
+        body {
+            font-family: 'Helvetica Neue', Arial, sans-serif;
+            background-color: #1e1e1e; /* ダークテーマ背景 */
+            margin: 0;
+            padding: 20px;
+            color: #e0e0e0; /* ダークテーマテキスト色 */
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        h1 {
+            font-size: 22px;
+            margin-bottom: 20px;
+        }
+        .controls {
+            margin-bottom: 20px;
+            display: flex;
+            gap: 15px;
+            background: #2d2d2d; /* コントロールパネルのダーク背景 */
+            padding: 12px 24px;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            background-color: #007bff;
+            color: white;
+            font-weight: bold;
+            cursor: pointer;
+            transition: background 0.2s, opacity 0.2s;
+        }
+        .btn:hover:not(:disabled) {
+            background-color: #0056b3;
+        }
+        .btn:disabled {
+            background-color: #555555;
+            cursor: not-allowed;
+            color: #aaaaaa;
+        }
+        #fileInput {
+            display: none;
+        }
+        .upload-label {
+            padding: 10px 20px;
+            background-color: #28a745;
+            color: white;
+            border-radius: 5px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        .upload-label:hover {
+            background-color: #218838;
+        }
+        #zoomBtn {
+            background-color: #ff9f43;
+        }
+        #zoomBtn.active {
+            background-color: #e67e22;
+            opacity: 0.8;
+        }
+        #imageContainer {
+            position: relative;
+            display: inline-block;
+            max-width: 100%;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+            border-radius: 4px;
+            background-image: linear-gradient(45deg, #2d2d2d 25%, transparent 25%), linear-gradient(-45deg, #2d2d2d 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #2d2d2d 75%), linear-gradient(-45deg, transparent 75%, #2d2d2d 75%);
+            background-size: 16px 16px;
+            background-position: 0 0, 0 8px, 8px -8px, -8px 0px;
+        }
+        #imageCanvas {
+            max-width: 100%;
+            height: auto;
+            display: block;
+            cursor: crosshair;
+        }
+        #lineCanvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none; /* 線は操作対象外 */
+            z-index: 5; /* 吹き出し(z-index:10)の背面、画像キャンバスの前面 */
+        }
+        #zoomCanvas {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            width: 150px;
+            height: 150px;
+            border: 2px solid rgba(255, 255, 255, 0.5);
+            border-radius: 8px;
+            background: #2d2d2d;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+            display: none;
+            z-index: 15;
+            pointer-events: none;
+        }
+        #imageContainer.show-zoom #zoomCanvas {
+            display: block;
+        }
+        .balloon {
+            position: absolute;
+            display: flex;
+            align-items: center;
+            background: #2d2d2d;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 6px;
+            padding: 6px 10px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+            cursor: move;
+            user-select: none;
+            z-index: 10;
+            /* 吹き出しのサイズを固定化して線の中心計算を安定させる */
+            width: 115px; 
+            height: 18px;
+        }
+        .color-box {
+            width: 16px;
+            height: 16px;
+            border-radius: 4px;
+            margin-right: 8px;
+            border: 1px solid rgba(0,0,0,0.2);
+            flex-shrink: 0;
+        }
+        .hex-text {
+            font-family: monospace;
+            font-size: 14px;
+            font-weight: bold;
+            color: #e0e0e0;
+            margin-right: 12px;
+        }
+        .close-btn {
+            font-size: 16px;
+            color: #a0a0a0;
+            cursor: pointer;
+            font-weight: bold;
+            line-height: 1;
+            transition: color 0.1s;
+            margin-left: auto;
+        }
+        .close-btn:hover {
+            color: #ff3b30;
+        }
+        .placeholder-text {
+            color: #999;
+            margin-top: 50px;
+            font-style: italic;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>画像カラーピッカー ＆ ツールチップジェネレーター</h1>
+
+    <div class="controls">
+        <label for="fileInput" class="upload-label">画像を選択</label>
+        <input type="file" id="fileInput" accept="image/*">
+        <button id="zoomBtn" class="btn" disabled>ズーム表示 (OFF)</button>
+        <button id="saveBtn" class="btn" disabled>画像を保存</button>
+        <button id="clearBtn" class="btn" style="background-color: #dc3545;" disabled>すべてクリア</button>
+    </div>
+
+    <div id="imageContainer" style="display: none;">
+        <canvas id="imageCanvas"></canvas>
+        <canvas id="lineCanvas"></canvas>
+        <canvas id="zoomCanvas" width="150" height="150"></canvas>
+    </div>
+    
+    <div id="placeholder" class="placeholder-text">上のボタンから画像を読み込んでください。</div>
+
+    <script>
+        const fileInput = document.getElementById('fileInput');
+        const zoomBtn = document.getElementById('zoomBtn');
+        const saveBtn = document.getElementById('saveBtn');
+        const clearBtn = document.getElementById('clearBtn');
+        const container = document.getElementById('imageContainer');
+        const canvas = document.getElementById('imageCanvas');
+        const ctx = canvas.getContext('2d');
+        const lineCanvas = document.getElementById('lineCanvas');
+        const lineCtx = lineCanvas.getContext('2d');
+        const zoomCanvas = document.getElementById('zoomCanvas');
+        const zoomCtx = zoomCanvas.getContext('2d');
+        const placeholder = document.getElementById('placeholder');
+
+        let isDragging = false;
+        let isZoomActive = false;
+        let activeBalloon = null;
+        let startX = 0;
+        let startY = 0;
+
+        // 1. 画像の読み込み処理
+        fileInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                const img = new Image();
+                img.onload = () => {
+                    canvas.width = img.width;
+                    canvas.height = img.height;
+                    ctx.drawImage(img, 0, 0);
+
+                    // 線描画用Canvasの解像度も画像のオリジナルサイズに完全一致させる
+                    lineCanvas.width = img.width;
+                    lineCanvas.height = img.height;
+                    
+                    container.style.display = 'inline-block';
+                    placeholder.style.display = 'none';
+                    zoomBtn.disabled = false;
+                    saveBtn.disabled = false;
+                    clearBtn.disabled = false;
+                    
+                    clearBalloons();
+                    updateZoomState(false);
+                };
+                img.src = event.target.result;
+            };
+            reader.readAsDataURL(file);
+        });
+
+        // 2. ズーム機能の制御
+        zoomBtn.addEventListener('click', () => {
+            updateZoomState(!isZoomActive);
+        });
+
+        function updateZoomState(state) {
+            isZoomActive = state;
+            if (isZoomActive) {
+                zoomBtn.classList.add('active');
+                zoomBtn.textContent = 'ズーム表示 (ON)';
+                container.classList.add('show-zoom');
+            } else {
+                zoomBtn.classList.remove('active');
+                zoomBtn.textContent = 'ズーム表示 (OFF)';
+                container.classList.remove('show-zoom');
+                zoomCtx.clearRect(0, 0, zoomCanvas.width, zoomCanvas.height);
+            }
+        }
+
+        canvas.addEventListener('pointermove', (e) => {
+            if (!isZoomActive || isDragging) return;
+
+            const x = e.offsetX;
+            const y = e.offsetY;
+            const scale = canvas.width / canvas.clientWidth;
+            const pixelX = Math.floor(x * scale);
+            const pixelY = Math.floor(y * scale);
+
+            updateZoomCanvas(pixelX, pixelY);
+        });
+
+        function updateZoomCanvas(pixelX, pixelY) {
+            zoomCtx.clearRect(0, 0, zoomCanvas.width, zoomCanvas.height);
+            const zoomFactor = 10;
+            const viewSize = zoomCanvas.width;
+            const srcSize = viewSize / zoomFactor;
+            const srcX = pixelX - (srcSize / 2);
+            const srcY = pixelY - (srcSize / 2);
+
+            zoomCtx.drawImage(canvas, srcX, srcY, srcSize, srcSize, 0, 0, viewSize, viewSize);
+
+            // クロスヘア
+            zoomCtx.strokeStyle = 'rgba(255, 255, 255, 0.8)';
+            zoomCtx.lineWidth = 1;
+            zoomCtx.beginPath();
+            zoomCtx.moveTo(viewSize / 2, 0); zoomCtx.lineTo(viewSize / 2, viewSize);
+            zoomCtx.moveTo(0, viewSize / 2); zoomCtx.lineTo(viewSize, viewSize / 2);
+            zoomCtx.stroke();
+        }
+
+        // 3. 色取得と吹き出し作成
+        canvas.addEventListener('click', (e) => {
+            if (e.target !== canvas || isDragging) return;
+
+            const x = e.offsetX;
+            const y = e.offsetY;
+            const scale = canvas.width / canvas.clientWidth;
+            
+            // 絶対ピクセル座標を算出
+            const pixelX = Math.floor(x * scale);
+            const pixelY = Math.floor(y * scale);
+
+            const imgData = ctx.getImageData(pixelX, pixelY, 1, 1).data;
+            const hex = "#" + ((1 << 24) + (imgData[0] << 16) + (imgData[1] << 8) + imgData[2]).toString(16).slice(1).toUpperCase();
+
+            // 吹き出しの初期位置を表示座標ベースで指定（少しずらす）
+            createBalloon(pixelX, pixelY, x + 15, y + 15, hex);
+        });
+
+        function createBalloon(pixelX, pixelY, currentX, currentY, hex) {
+            const balloon = document.createElement('div');
+            balloon.className = 'balloon';
+            balloon.style.left = currentX + 'px';
+            balloon.style.top = currentY + 'px';
+            
+            // 重要：不変である「画像上の絶対ピクセル座標」をデータ属性に保存
+            balloon.dataset.pixelX = pixelX;
+            balloon.dataset.pixelY = pixelY;
+            balloon.dataset.hex = hex;
+
+            const colorBox = document.createElement('div');
+            colorBox.className = 'color-box';
+            colorBox.style.backgroundColor = hex;
+
+            const text = document.createElement('span');
+            text.className = 'hex-text';
+            text.textContent = hex;
+
+            const closeBtn = document.createElement('span');
+            closeBtn.className = 'close-btn';
+            closeBtn.textContent = '×';
+            closeBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                balloon.remove();
+                drawLines();
+            });
+
+            balloon.appendChild(colorBox);
+            balloon.appendChild(text);
+            balloon.appendChild(closeBtn);
+            container.appendChild(balloon);
+            
+            drawLines();
+        }
+
+        function clearBalloons() {
+            container.querySelectorAll('.balloon').forEach(b => b.remove());
+            drawLines();
+        }
+
+        clearBtn.addEventListener('click', clearBalloons);
+
+        // 4. 【修正の要】抽出点と吹き出しを結ぶ線の描画
+        function drawLines() {
+            lineCtx.clearRect(0, 0, lineCanvas.width, lineCanvas.height);
+            
+            const balloons = container.querySelectorAll('.balloon');
+            if (balloons.length === 0) return;
+
+            // 現在の表示倍率（オリジナル解像度 ÷ 画面上の表示幅）
+            const scale = canvas.width / canvas.clientWidth;
+            
+            lineCtx.strokeStyle = 'white';
+            lineCtx.lineWidth = 2 * scale; // 高解像度画像でも線の太さを一定に見せる
+            lineCtx.shadowColor = 'rgba(0, 0, 0, 0.5)';
+            lineCtx.shadowBlur = 4 * scale;
+
+            balloons.forEach(balloon => {
+                // 始点：保存しておいた「絶対ピクセル座標」をそのまま使用（ズレない）
+                const origX = parseFloat(balloon.dataset.pixelX);
+                const origY = parseFloat(balloon.dataset.pixelY);
+                
+                // 終点：現在の表示位置(CSSピクセル)を取得
+                const bx = parseFloat(balloon.style.left);
+                const by = parseFloat(balloon.style.top);
+                
+                // 線の端が不自然に浮かないよう、吹き出しの中心（およそ横に+65px, 縦に+15pxの地点）を狙う
+                // その後、全体にscaleを掛けてオリジナル解像度の座標へ変換
+                const targetX = (bx + 65) * scale;
+                const targetY = (by + 15) * scale;
+
+                lineCtx.beginPath();
+                lineCtx.moveTo(origX, origY);
+                lineCtx.lineTo(targetX, targetY);
+                lineCtx.stroke();
+            });
+        }
+
+        // ブラウザのサイズが変更された時も線を再描画（ズレ防止）
+        window.addEventListener('resize', () => {
+            if (container.style.display !== 'none') {
+                drawLines();
+            }
+        });
+
+        // 5. ドラッグ＆ドロップ処理
+        document.addEventListener('pointerdown', (e) => {
+            const balloon = e.target.closest('.balloon');
+            if (balloon && !e.target.classList.contains('close-btn')) {
+                isDragging = true;
+                activeBalloon = balloon;
+                startX = e.clientX - balloon.offsetLeft;
+                startY = e.clientY - balloon.offsetTop;
+                balloon.style.zIndex = '1000';
+                
+                container.querySelectorAll('.balloon').forEach(b => {
+                    if (b !== balloon) b.style.zIndex = '10';
+                });
+            }
+        });
+
+        document.addEventListener('pointermove', (e) => {
+            if (!isDragging || !activeBalloon) return;
+
+            let left = e.clientX - startX;
+            let top = e.clientY - startY;
+
+            const maxLeft = container.clientWidth - activeBalloon.offsetWidth;
+            const maxTop = container.clientHeight - activeBalloon.offsetHeight;
+
+            if (left < 0) left = 0;
+            if (top < 0) top = 0;
+            if (left > maxLeft) left = maxLeft;
+            if (top > maxTop) top = maxTop;
+
+            activeBalloon.style.left = left + 'px';
+            activeBalloon.style.top = top + 'px';
+            
+            drawLines(); // 移動中にリアルタイム再描画
+        });
+
+        document.addEventListener('pointerup', () => {
+            if (activeBalloon) {
+                activeBalloon.style.zIndex = '10';
+                isDragging = false;
+                activeBalloon = null;
+            }
+        });
+
+        // 6. 画像の保存処理（保存画像側でも線を完全一致させる）
+        saveBtn.addEventListener('click', () => {
+            const exportCanvas = document.createElement('canvas');
+            exportCanvas.width = canvas.width;
+            exportCanvas.height = canvas.height;
+            const exportCtx = exportCanvas.getContext('2d');
+
+            exportCtx.drawImage(canvas, 0, 0);
+
+            const scale = canvas.width / canvas.clientWidth;
+            const balloons = container.querySelectorAll('.balloon');
+
+            // 先にすべての「線」を書き出す
+            balloons.forEach(balloon => {
+                const origX = parseFloat(balloon.dataset.pixelX);
+                const origY = parseFloat(balloon.dataset.pixelY);
+                const bx = parseFloat(balloon.style.left) * scale;
+                const by = parseFloat(balloon.style.top) * scale;
+
+                const targetX = bx + (65 * scale);
+                const targetY = by + (15 * scale);
+
+                exportCtx.strokeStyle = 'white';
+                exportCtx.lineWidth = 2 * scale;
+                exportCtx.shadowColor = 'rgba(0, 0, 0, 0.5)';
+                exportCtx.shadowBlur = 4 * scale;
+                
+                exportCtx.beginPath();
+                exportCtx.moveTo(origX, origY);
+                exportCtx.lineTo(targetX, targetY);
+                exportCtx.stroke();
+            });
+
+            exportCtx.shadowBlur = 0;
+            exportCtx.shadowColor = 'transparent';
+
+            // 次にその上から「吹き出し」を書き出す（線が裏に隠れて綺麗に繋がる）
+            balloons.forEach(balloon => {
+                const bx = parseFloat(balloon.style.left) * scale;
+                const by = parseFloat(balloon.style.top) * scale;
+                const hex = balloon.dataset.hex;
+
+                const fontSize = Math.max(14, Math.round(14 * scale));
+                exportCtx.font = `bold ${fontSize}px sans-serif`;
+                
+                const padding = 8 * scale;
+                const colorBoxSize = 16 * scale;
+                const gap = 8 * scale;
+                const textWidth = exportCtx.measureText(hex).width;
+                
+                // 削除ボタンを省いた保存用サイズ
+                const balloonWidth = padding * 2 + colorBoxSize + gap + textWidth;
+                const balloonHeight = Math.max(colorBoxSize, fontSize) + padding * 2;
+
+                exportCtx.shadowColor = 'rgba(0, 0, 0, 0.5)';
+                exportCtx.shadowBlur = 6 * scale;
+                exportCtx.shadowOffsetX = 2 * scale;
+                exportCtx.shadowOffsetY = 4 * scale;
+
+                // 背景
+                const radius = 6 * scale;
+                exportCtx.fillStyle = '#2d2d2d';
+                exportCtx.beginPath();
+                exportCtx.moveTo(bx + radius, by);
+                exportCtx.lineTo(bx + balloonWidth - radius, by);
+                exportCtx.quadraticCurveTo(bx + balloonWidth, by, bx + balloonWidth, by + radius);
+                exportCtx.lineTo(bx + balloonWidth, by + balloonHeight - radius);
+                exportCtx.quadraticCurveTo(bx + balloonWidth, by + balloonHeight, bx + balloonWidth - radius, by + balloonHeight);
+                exportCtx.lineTo(bx + radius, by + balloonHeight);
+                exportCtx.quadraticCurveTo(bx, by + balloonHeight, bx, by + balloonHeight - radius);
+                exportCtx.lineTo(bx, by + radius);
+                exportCtx.quadraticCurveTo(bx, by, bx + radius, by);
+                exportCtx.closePath();
+                exportCtx.fill();
+
+                exportCtx.shadowColor = 'transparent';
+                exportCtx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
+                exportCtx.lineWidth = 1 * scale;
+                exportCtx.stroke();
+
+                // 色ボックス
+                const boxX = bx + padding;
+                const boxY = by + (balloonHeight - colorBoxSize) / 2;
+                const boxRadius = 4 * scale;
+                exportCtx.fillStyle = hex;
+                exportCtx.beginPath();
+                exportCtx.moveTo(boxX + boxRadius, boxY);
+                exportCtx.lineTo(boxX + colorBoxSize - boxRadius, boxY);
+                exportCtx.quadraticCurveTo(boxX + colorBoxSize, boxY, boxX + colorBoxSize, boxY + boxRadius);
+                exportCtx.lineTo(boxX + colorBoxSize, boxY + colorBoxSize - boxRadius);
+                exportCtx.quadraticCurveTo(boxX + colorBoxSize, boxY + colorBoxSize, boxX + colorBoxSize - boxRadius, boxY + colorBoxSize);
+                exportCtx.lineTo(boxX + boxRadius, boxY + colorBoxSize);
+                exportCtx.quadraticCurveTo(boxX, boxY + colorBoxSize, boxX, boxY + colorBoxSize - boxRadius);
+                exportCtx.lineTo(boxX, boxY + boxRadius);
+                exportCtx.quadraticCurveTo(boxX, boxY, boxX + boxRadius, boxY);
+                exportCtx.closePath();
+                exportCtx.fill();
+
+                // テキスト
+                exportCtx.fillStyle = '#e0e0e0';
+                exportCtx.textBaseline = 'middle';
+                exportCtx.fillText(hex, bx + padding + colorBoxSize + gap, by + balloonHeight / 2);
+            });
+
+            const link = document.createElement('a');
+            link.download = 'color_picked_fixed.png';
+            link.href = exportCanvas.toDataURL('image/png');
+            link.click();
+        });
+    </script>
+</body>
+</html>
