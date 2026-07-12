@@ -8,6 +8,8 @@
   ２～４枚の画像を比較表示
 - [OneThirdBlender](#onethirdblender)  
   1/3ブレンダー
+- [WebPtoJpegConverter](#webptojpegconverter)  
+  WebpをJpegに一括変換
 
 ### 制作系
 
@@ -35,6 +37,15 @@ Studi○Aliceで見かける感じのやつ。
 
 用意する画像：  
 ![引数](docimages/onethirdblender_needimage.png)
+
+## WebPtoJpegConverter
+
+ドラッグアンドドロップされたWebpファイルをJpeg化してZIPにします。  
+ローカル環境で動作します。
+
+[WebPtoJpegConverter](webp2jpg.html)
+
+![動作イメージ](images/webp2jpg.png)
 
 ## ColorPicker
 
