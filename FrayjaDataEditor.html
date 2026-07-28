@@ -786,6 +786,7 @@
                         fullName: '砂狼シロコ',
                         school: 'アビドス',
                         club: '対策委員会',
+                        dataPath: '',
                         normalAttackActionSkillId: '',
                         normalAttackDisplayName: '',
                         otherActionSkills: [],
@@ -1426,6 +1427,10 @@
                                 <button type="button" class="btn" onclick="openOtherActionSkillsModal()">＋ 追加</button>
                             </div>
                         </div>
+                    </div>
+                    <div class="form-group">
+                        <label>データパス</label>
+                        <input type="text" class="form-control" value="${escapeHtml(currentItem.dataPath || '')}" oninput="updateCurrentItem('dataPath', this.value)">
                     </div>
                 `;
             } else {
@@ -2295,6 +2300,7 @@
                     fullName: '無名のユニット',
                     school: '',
                     club: '',
+                    dataPath: '',
                     normalAttackActionSkillId: '',
                     normalAttackDisplayName: '',
                     otherActionSkills: [],
