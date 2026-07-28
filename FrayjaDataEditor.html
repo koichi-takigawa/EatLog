@@ -136,6 +136,16 @@
         .item-row.is-released .item-title {
             color: var(--released-color);
         }
+        .item-row.dragging {
+            opacity: 0.45;
+        }
+        .item-drop-indicator {
+            height: 0;
+            border-top: 3px solid var(--accent-color);
+            border-radius: 2px;
+            margin: 2px 0 6px;
+            pointer-events: none;
+        }
 
         .item-row .item-title { 
             font-size: 14px; 
@@ -805,6 +815,10 @@
 
         let contextTargetTabId = null;
         let contextTargetItemId = null;
+        let draggingItemId = null;
+        let dropTargetItemId = null;
+        let dropInsertAfter = false;
+        let lastItemDnDDropAt = 0;
         let actionSkillEditContext = null;
         let actionSkillContextSkillId = null;
         let otherActionSkillsTargetUnitId = null;
@@ -860,6 +874,27 @@
         function renderItems() {
             const container = document.getElementById('itemList');
             container.innerHTML = '';
+            container.ondragover = (e) => {
+                if (!draggingItemId) return;
+                e.preventDefault();
+                e.dataTransfer.dropEffect = 'move';
+
+                const insertionTarget = getItemInsertionTargetByPointer(e.clientY);
+                if (insertionTarget) {
+                    showItemDropIndicator(insertionTarget.row, insertionTarget.isAfter);
+                }
+            };
+            container.ondrop = (e) => {
+                if (!draggingItemId) return;
+                e.preventDefault();
+
+                if (dropTargetItemId) {
+                    reorderItemsInSelectedCategory(draggingItemId, dropTargetItemId, dropInsertAfter);
+                }
+
+                lastItemDnDDropAt = Date.now();
+                cleanupItemDnDState();
+            };
             
             const filteredItems = state.items.filter(item => item.categoryId === state.selectedCategoryId);
             
@@ -873,13 +908,62 @@
                 const isSelectedTab = state.activeTabId === item.id;
                 const releasedClass = item.isReleased ? 'is-released' : '';
                 div.className = `item-row ${isSelectedTab ? 'selected' : ''} ${releasedClass}`;
+                div.draggable = true;
+                div.dataset.itemId = item.id;
                 
                 div.innerHTML = `
                     <div class="item-title">${escapeHtml(item.name || '無題')}</div>
                     <!---<div class="item-desc">${escapeHtml(item.fullName || item.school || '')}</div>--->
                 `;
                 
-                div.onclick = () => openTab(item.id);
+                div.onclick = () => {
+                    if (Date.now() - lastItemDnDDropAt < 200) return;
+                    openTab(item.id);
+                };
+
+                div.ondragstart = (e) => {
+                    draggingItemId = item.id;
+                    e.dataTransfer.effectAllowed = 'move';
+                    e.dataTransfer.setData('text/plain', item.id);
+                    div.classList.add('dragging');
+                };
+
+                div.ondragover = (e) => {
+                    if (!draggingItemId || draggingItemId === item.id) return;
+                    e.preventDefault();
+                    e.dataTransfer.dropEffect = 'move';
+
+                    const insertionTarget = getItemInsertionTargetByPointer(e.clientY);
+                    if (insertionTarget) {
+                        showItemDropIndicator(insertionTarget.row, insertionTarget.isAfter);
+                    }
+                };
+
+                div.ondragenter = (e) => {
+                    if (!draggingItemId || draggingItemId === item.id) return;
+                    e.preventDefault();
+
+                    const insertionTarget = getItemInsertionTargetByPointer(e.clientY);
+                    if (insertionTarget) {
+                        showItemDropIndicator(insertionTarget.row, insertionTarget.isAfter);
+                    }
+                };
+
+                div.ondrop = (e) => {
+                    if (!draggingItemId) return;
+                    e.preventDefault();
+                    e.stopPropagation();
+
+                    if (dropTargetItemId) {
+                        reorderItemsInSelectedCategory(draggingItemId, dropTargetItemId, dropInsertAfter);
+                    }
+                    lastItemDnDDropAt = Date.now();
+                    cleanupItemDnDState();
+                };
+
+                div.ondragend = () => {
+                    cleanupItemDnDState();
+                };
                 
                 div.oncontextmenu = (e) => {
                     e.preventDefault();
@@ -889,6 +973,133 @@
 
                 container.appendChild(div);
             });
+        }
+
+        function getItemInsertionTargetByPointer(clientY) {
+            const rows = Array.from(document.querySelectorAll('#itemList .item-row'))
+                .filter((row) => row.dataset && row.dataset.itemId && row.dataset.itemId !== draggingItemId);
+
+            if (rows.length === 0) return null;
+
+            for (let i = 0; i < rows.length; i += 1) {
+                const row = rows[i];
+                const rect = row.getBoundingClientRect();
+                const midpoint = rect.top + rect.height / 2;
+                if (clientY < midpoint) {
+                    return { row, isAfter: false };
+                }
+            }
+
+            return { row: rows[rows.length - 1], isAfter: true };
+        }
+
+        function getItemDropIndicator() {
+            const container = document.getElementById('itemList');
+            let indicator = document.getElementById('itemDropIndicator');
+            if (!indicator) {
+                indicator = document.createElement('div');
+                indicator.id = 'itemDropIndicator';
+                indicator.className = 'item-drop-indicator';
+            }
+            if (indicator.parentElement !== container) {
+                container.appendChild(indicator);
+            }
+            return indicator;
+        }
+
+        function showItemDropIndicator(targetRow, isAfter) {
+            if (!targetRow || !targetRow.dataset || !targetRow.dataset.itemId) return;
+
+            const targetId = targetRow.dataset.itemId;
+            const wouldMove = willReorderItemsInSelectedCategory(draggingItemId, targetId, isAfter);
+            if (!wouldMove) {
+                clearItemDropIndicator();
+                dropTargetItemId = null;
+                dropInsertAfter = false;
+                return;
+            }
+
+            const container = document.getElementById('itemList');
+            const indicator = getItemDropIndicator();
+            const referenceNode = isAfter ? targetRow.nextSibling : targetRow;
+            container.insertBefore(indicator, referenceNode);
+            dropTargetItemId = targetId;
+            dropInsertAfter = Boolean(isAfter);
+        }
+
+        function clearItemDropIndicator() {
+            const indicator = document.getElementById('itemDropIndicator');
+            if (indicator && indicator.parentElement) {
+                indicator.parentElement.removeChild(indicator);
+            }
+        }
+
+        function willReorderItemsInSelectedCategory(draggedId, targetId, isAfter) {
+            if (!draggedId || !targetId) return false;
+
+            const categoryId = state.selectedCategoryId;
+            const categoryItems = state.items.filter(item => item.categoryId === categoryId);
+            const fromIndex = categoryItems.findIndex(item => item.id === draggedId);
+            const toIndex = categoryItems.findIndex(item => item.id === targetId);
+            if (fromIndex < 0 || toIndex < 0) return false;
+
+            let insertIndex = toIndex + (isAfter ? 1 : 0);
+            if (fromIndex < insertIndex) {
+                insertIndex -= 1;
+            }
+
+            if (insertIndex < 0) insertIndex = 0;
+            if (insertIndex > categoryItems.length - 1) {
+                insertIndex = categoryItems.length - 1;
+            }
+
+            return insertIndex !== fromIndex;
+        }
+
+        function cleanupItemDnDState() {
+            draggingItemId = null;
+            dropTargetItemId = null;
+            dropInsertAfter = false;
+            document.querySelectorAll('.item-row.dragging').forEach((el) => {
+                el.classList.remove('dragging');
+            });
+            clearItemDropIndicator();
+        }
+
+        function reorderItemsInSelectedCategory(draggedId, targetId, isAfter) {
+            if (!draggedId || !targetId) return;
+
+            const categoryId = state.selectedCategoryId;
+            const categoryItems = state.items.filter(item => item.categoryId === categoryId);
+            const fromIndex = categoryItems.findIndex(item => item.id === draggedId);
+            const toIndex = categoryItems.findIndex(item => item.id === targetId);
+            if (fromIndex < 0 || toIndex < 0) return;
+
+            const reorderedCategoryItems = [...categoryItems];
+            const [moved] = reorderedCategoryItems.splice(fromIndex, 1);
+
+            let insertIndex = toIndex + (isAfter ? 1 : 0);
+            if (fromIndex < insertIndex) {
+                insertIndex -= 1;
+            }
+
+            if (insertIndex < 0) insertIndex = 0;
+            if (insertIndex > reorderedCategoryItems.length) {
+                insertIndex = reorderedCategoryItems.length;
+            }
+
+            reorderedCategoryItems.splice(insertIndex, 0, moved);
+
+            let idx = 0;
+            state.items = state.items.map((item) => {
+                if (item.categoryId !== categoryId) return item;
+                const nextItem = reorderedCategoryItems[idx];
+                idx += 1;
+                return nextItem;
+            });
+
+            renderItems();
+            requestSaveToLocalStorage();
         }
 
         function renderTabs() {
