@@ -1,0 +1,1967 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>Project Frayja Data Editor 0.01.00</title>
+    <style>
+        :root {
+            --bg-color: #1e1e1e;
+            --panel-bg: #252526;
+            --menubar-bg: #181818;
+            --border-color: #333333;
+            --text-color: #d4d4d4;
+            --text-muted: #858585;
+            --accent-color: #0e639c;
+            --accent-hover: #1177bb;
+            --tab-active: #1e1e1e;
+            --tab-inactive: #2d2d2d;
+            --context-bg: #2d2d2d;
+            --released-color: #4ec9b0;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        /* 1. 一番上のメニューバー */
+        #menuBar {
+            background-color: var(--menubar-bg);
+            border-bottom: 1px solid var(--border-color);
+            height: 40px;
+            display: flex;
+            align-items: center;
+            padding: 0 15px;
+            gap: 10px;
+            flex-shrink: 0;
+        }
+
+        .menu-title {
+            font-weight: bold;
+            font-size: 13px;
+            color: var(--text-color);
+            margin-right: 15px;
+            letter-spacing: 0.05em;
+        }
+        .save-indicator {
+            margin-left: auto;
+            color: var(--released-color);
+            visibility: hidden;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            line-height: 1;
+        }
+        .save-indicator svg {
+            width: 16px;
+            height: 16px;
+        }
+
+        /* メインの3ペインを囲むコンテナ */
+        .main-container {
+            display: flex;
+            flex: 1;
+            overflow: hidden;
+        }
+
+        /* 共通ペインスタイル */
+        .pane {
+            background-color: var(--panel-bg);
+            border-right: 1px solid var(--border-color);
+            display: flex;
+            flex-direction: column;
+            flex-shrink: 0;
+        }
+
+        .pane-header {
+            padding: 12px 15px;
+            font-size: 13px;
+            font-weight: bold;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            border-bottom: 1px solid var(--border-color);
+            color: var(--text-muted);
+        }
+
+        .pane-content {
+            flex: 1;
+            overflow-y: auto;
+            padding: 10px;
+        }
+
+        /* 2. 左ペイン：カテゴリ */
+        #categoryPane {
+            width: 200px;
+        }
+        .category-item {
+            padding: 8px 12px;
+            cursor: pointer;
+            border-radius: 4px;
+            margin-bottom: 2px;
+            font-size: 14px;
+        }
+        .category-item:hover { background-color: rgba(255, 255, 255, 0.05); }
+        .category-item.active { background-color: var(--accent-color); color: #fff; }
+
+        /* 3. 中央ペイン：アイテム一覧 */
+        #itemPane {
+            width: 260px;
+        }
+        .item-row {
+            padding: 10px 12px;
+            cursor: pointer;
+            border-radius: 4px;
+            margin-bottom: 4px;
+            border: 1px solid transparent;
+            border-left: 4px solid transparent;
+            overflow: hidden; /* はみ出し防止 */
+        }
+        .item-row:hover { background-color: rgba(255, 255, 255, 0.05); }
+        .item-row.selected { background-color: #2a2d2e; border-color: var(--accent-color); }
+        
+        .item-row.is-released {
+            border-left-color: var(--released-color);
+        }
+        .item-row.is-released .item-title {
+            color: var(--released-color);
+        }
+
+        .item-row .item-title { 
+            font-size: 14px; 
+            font-weight: 500; 
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .item-row .item-desc { 
+            font-size: 12px; 
+            color: var(--text-muted); 
+            margin-top: 2px; 
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .btn {
+            background-color: var(--accent-color);
+            color: #fff;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+            padding: 6px 12px;
+        }
+        .btn:hover { background-color: var(--accent-hover); }
+
+        .add-btn {
+            margin: 10px;
+            padding: 8px;
+            width: calc(100% - 20px);
+        }
+
+        /* 4. 右ペイン：タブエディター＆編集画面 */
+        #editorPane {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            background-color: var(--bg-color);
+            min-width: 0;
+        }
+
+        .tab-header {
+            display: flex;
+            flex-wrap: wrap;
+            background-color: var(--panel-bg);
+            border-bottom: 1px solid var(--border-color);
+            max-height: 100px;
+            overflow-y: auto;
+        }
+
+        .tab {
+            max-width: 300px;
+            padding: 0 10px 0 15px;
+            height: 35px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            cursor: pointer;
+            background-color: var(--tab-inactive);
+            border-right: 1px solid var(--border-color);
+            border-bottom: 1px solid var(--border-color);
+            font-size: 13px;
+            color: var(--text-muted);
+            user-select: none;
+        }
+
+        .tab.active {
+            background-color: var(--tab-active);
+            color: var(--text-color);
+            border-top: 2px solid var(--accent-color);
+            border-bottom: none;
+        }
+
+        .tab span {
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .tab .close-btn {
+            background: none;
+            border: none;
+            color: var(--text-muted);
+            cursor: pointer;
+            font-size: 14px;
+            border-radius: 50%;
+            width: 18px;
+            height: 18px;
+            flex-shrink: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .tab .close-btn:hover { background-color: rgba(255, 255, 255, 0.1); color: var(--text-color); }
+
+        .editor-content {
+            flex: 1;
+            padding: 20px;
+            overflow-y: auto;
+            width: 100%;
+            max-width: none;
+        }
+
+        /* フォーム要素 */
+        .form-group {
+            margin-bottom: 15px;
+            padding: 12px 14px;
+            background-color: #2a2a2e;
+            border: 1px solid rgba(255, 255, 255, 0.06);
+            border-radius: 6px;
+            display: grid;
+            grid-template-columns: minmax(160px, 220px) minmax(0, 1fr);
+            gap: 10px 16px;
+            align-items: start;
+        }
+        .form-group label {
+            display: block;
+            font-size: 12px;
+            color: var(--text-muted);
+            margin-bottom: 0;
+            padding-top: 9px;
+        }
+        .form-group > label:not(.checkbox-label) {
+            grid-column: 1;
+        }
+        .form-group > :not(label):not(.checkbox-label) {
+            grid-column: 2;
+        }
+        .form-group--checkbox {
+            grid-template-columns: 1fr;
+            align-items: center;
+        }
+        .form-group--checkbox > .checkbox-label {
+            grid-column: 1 / -1;
+        }
+        .form-group--checkbox label {
+            padding-top: 0;
+        }
+        .form-group--stack {
+            display: block;
+        }
+        .form-group-stack-row {
+            display: grid;
+            grid-template-columns: minmax(160px, 220px) minmax(0, 1fr);
+            gap: 10px 16px;
+            align-items: start;
+        }
+        .form-group-stack-row + .form-group-stack-row {
+            margin-top: 12px;
+        }
+        .form-group-stack-row label {
+            margin-bottom: 0;
+            padding-top: 9px;
+        }
+        .form-control {
+            width: 100%;
+            padding: 8px 12px;
+            background-color: #3c3c3c;
+            border: 1px solid #555;
+            color: #fff;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+        .form-control:focus {
+            outline: none;
+            border-color: var(--accent-color);
+        }
+        .form-control.required-empty {
+            border-color: #d32f2f;
+            background-color: rgba(211, 47, 47, 0.12);
+        }
+        select.form-control {
+            cursor: pointer;
+        }
+        .checkbox-label {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            color: var(--text-color);
+            margin-bottom: 0;
+            padding-top: 0;
+        }
+        .checkbox-label input {
+            width: 16px;
+            height: 16px;
+            cursor: pointer;
+        }
+
+        /* ボタン型ラジオ・トグルボタン用スタイル */
+        .radio-button-group {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+        }
+        .radio-btn {
+            background-color: #3c3c3c;
+            border: 1px solid #555;
+            color: var(--text-muted);
+            padding: 6px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 13px;
+            user-select: none;
+            transition: background-color 0.15s, border-color 0.15s, color 0.15s;
+        }
+        .radio-btn:hover {
+            background-color: #4c4c4c;
+            color: var(--text-color);
+        }
+        .radio-btn.active {
+            background-color: var(--accent-color);
+            border-color: var(--accent-hover);
+            color: #fff;
+            font-weight: 500;
+        }
+        /* ステータス入力テーブル用スタイル */
+        .status-table-container {
+            overflow-x: auto;
+            margin-top: 5px;
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            background-color: #252526;
+            padding: 10px;
+        }
+        .status-table {
+            border-collapse: collapse;
+            width: 100%;
+            min-width: 840px;
+            table-layout: fixed;
+            font-size: 13px;
+        }
+        .status-table th, .status-table td {
+            padding: 6px 4px;
+            text-align: center;
+            border-bottom: 1px solid #333;
+        }
+        .status-table th {
+            color: var(--text-muted);
+            font-weight: 600;
+            font-size: 11px;
+        }
+        .status-table td:first-child,
+        .status-table .single-stat-label-cell {
+            font-weight: 600;
+            text-align: right;
+            padding-right: 8px;
+            color: var(--text-color);
+            font-size: 12px;
+            white-space: nowrap;
+        }
+        .status-table .single-stat-input-cell {
+            padding: 6px 4px;
+            text-align: center;
+        }
+        .status-table .single-stat-placeholder-cell {
+            color: var(--text-muted);
+        }
+        .status-table .single-stat-input {
+            display: inline-block;
+        }
+        .status-input {
+            width: 100%;
+            display: block;
+            min-width: 70px;
+            padding: 4px;
+            background-color: #3c3c3c;
+            border: 1px solid #555;
+            color: #fff;
+            border-radius: 3px;
+            text-align: center;
+            font-size: 14px;
+            appearance: textfield;
+            -moz-appearance: textfield;
+        }
+        .status-input::-webkit-outer-spin-button,
+        .status-input::-webkit-inner-spin-button {
+            -webkit-appearance: none;
+            margin: 0;
+        }
+        .status-input:focus {
+            outline: none;
+            border-color: var(--accent-color);
+        }
+        .status-input.required-empty {
+            border-color: #d32f2f;
+            background-color: rgba(211, 47, 47, 0.12);
+        }
+        .status-table .status-divider-row td {
+            padding: 0;
+            height: 10px;
+            background: transparent;
+        }
+
+        .placeholder-config {
+            margin-top: 8px;
+            padding: 10px;
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            background-color: #252526;
+        }
+        .placeholder-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 8px;
+        }
+        .placeholder-row:last-child {
+            margin-bottom: 0;
+        }
+        .placeholder-token {
+            width: 48px;
+            font-size: 12px;
+            color: var(--text-muted);
+            flex-shrink: 0;
+        }
+        .placeholder-help {
+            margin-top: 6px;
+            font-size: 12px;
+            color: var(--text-muted);
+        }
+        .placeholder-header {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 8px;
+            font-size: 12px;
+            color: var(--text-muted);
+        }
+        .stat-row {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 15px;
+            margin-bottom: 10px;
+        }
+        .stat-row:last-of-type {
+            margin-bottom: 0;
+        }
+        .placeholder-count-input {
+            width: 80px;
+            padding: 4px 8px;
+            font-size: 12px;
+        }
+        .placeholder-subtitle {
+            display: block;
+            margin-bottom: 6px;
+            font-size: 12px;
+            color: var(--text-muted);
+        }
+
+        .empty-state {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+            color: var(--text-muted);
+            font-size: 14px;
+        }
+
+        /* カスタムコンテキストメニュー */
+        #contextMenu, #itemContextMenu, #normalAttackContextMenu {
+            display: none;
+            position: absolute;
+            background-color: var(--context-bg);
+            border: 1px solid var(--border-color);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+            border-radius: 4px;
+            z-index: 1000;
+            padding: 4px 0;
+            min-width: 160px;
+        }
+        .context-menu-item {
+            padding: 8px 16px;
+            font-size: 13px;
+            cursor: pointer;
+            color: var(--text-color);
+        }
+        .context-menu-item:hover {
+            background-color: var(--accent-color);
+            color: #fff;
+        }
+        .context-menu-item.danger:hover {
+            background-color: #d32f2f;
+        }
+
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background-color: rgba(0, 0, 0, 0.55);
+            z-index: 2000;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        .modal-overlay.show {
+            display: flex;
+        }
+        .modal-card {
+            width: min(520px, 100%);
+            background-color: var(--panel-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+            padding: 16px;
+        }
+        .modal-title {
+            font-size: 15px;
+            font-weight: 600;
+            margin-bottom: 12px;
+        }
+        .modal-actions {
+            display: flex;
+            justify-content: flex-end;
+            gap: 8px;
+            margin-top: 14px;
+        }
+        .btn-secondary {
+            background-color: transparent;
+            border: 1px solid #555;
+            color: var(--text-color);
+        }
+        .btn-secondary:hover {
+            background-color: rgba(255, 255, 255, 0.06);
+        }
+        .sub-action-skill-list {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            margin-bottom: 10px;
+        }
+        .sub-action-skill-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+            padding: 8px 10px;
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            background-color: #2a2a2a;
+        }
+        .sub-action-skill-item.is-valid {
+            border-left: 4px solid var(--released-color);
+            padding-left: 7px;
+        }
+        .sub-action-skill-meta {
+            min-width: 0;
+        }
+        .sub-action-skill-actions {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex-shrink: 0;
+        }
+        .sub-action-skill-name {
+            font-size: 13px;
+            color: var(--text-color);
+            word-break: break-word;
+        }
+        .sub-action-skill-item.is-valid .sub-action-skill-name {
+            color: var(--released-color);
+        }
+        .sub-action-skill-source {
+            font-size: 12px;
+            color: var(--text-muted);
+            margin-top: 2px;
+            word-break: break-word;
+        }
+        .sub-action-skill-empty {
+            font-size: 12px;
+            color: var(--text-muted);
+            padding: 8px 0;
+        }
+        .modal-option-list {
+            max-height: 240px;
+            overflow-y: auto;
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            background-color: #1f1f1f;
+            padding: 8px;
+        }
+        .modal-option-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 6px 4px;
+            color: var(--text-color);
+            cursor: pointer;
+            font-size: 13px;
+        }
+        .modal-option-item input {
+            width: 16px;
+            height: 16px;
+            cursor: pointer;
+        }
+        .modal-help {
+            margin-top: 8px;
+            font-size: 12px;
+            color: var(--text-muted);
+        }
+    </style>
+</head>
+<body>
+
+    <!-- 一番上のメニューバー -->
+    <div id="menuBar">
+        <span class="menu-title">Project Frayja Data Editor 0.01.00</span>
+        <button class="btn" onclick="createNewData()">新規作成</button>
+        <button class="btn" onclick="exportJSON()">JSON保存</button>
+        <button class="btn" onclick="document.getElementById('fileInput').click()">JSON読込</button>
+        <input type="file" id="fileInput" accept=".json" style="display:none" onchange="importJSON(event)">
+        <span id="saveIndicator" class="save-indicator" title="保存中" aria-label="保存中">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
+                <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path>
+                <polyline points="17 21 17 13 7 13 7 21"></polyline>
+                <polyline points="7 3 7 8 15 8"></polyline>
+            </svg>
+        </span>
+    </div>
+
+    <!-- メインの3ペイン領域 -->
+    <div class="main-container">
+        <!-- 左ペイン：カテゴリ -->
+        <div class="pane" id="categoryPane">
+            <div class="pane-header">Categories</div>
+            <div class="pane-content" id="categoryList"></div>
+        </div>
+
+        <!-- 中央ペイン：アイテム一覧 -->
+        <div class="pane" id="itemPane">
+            <div class="pane-header">Items</div>
+            <div class="pane-content" id="itemList"></div>
+            <button class="btn add-btn" onclick="addNewItem()">＋ 新規アイテム追加</button>
+        </div>
+
+        <!-- 右ペイン：タブエディター＆編集画面 -->
+        <div id="editorPane">
+            <div class="tab-header" id="tabHeader"></div>
+            <div class="editor-content" id="editorContent">
+                <div class="empty-state">編集するアイテムを選択するか、タブを開いてください。</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- タブ用右クリックメニュー -->
+    <div id="contextMenu">
+        <div class="context-menu-item" onclick="closeOtherTabs()">このタブ以外を削除</div>
+        <div class="context-menu-item" onclick="closeAllTabs()">全てのタブを削除</div>
+    </div>
+
+    <!-- アイテム行用右クリックメニュー -->
+    <div id="itemContextMenu">
+        <div class="context-menu-item danger" onclick="deleteContextItem()">アイテムを削除</div>
+    </div>
+
+    <!-- 通常攻撃ボタン用右クリックメニュー -->
+    <div id="normalAttackContextMenu">
+        <div class="context-menu-item" onclick="editNormalAttackSourceSkill()">元のスキルを編集</div>
+    </div>
+
+    <!-- 通常攻撃設定モーダル -->
+    <div id="normalAttackModal" class="modal-overlay" onclick="onNormalAttackModalOverlayClick(event)">
+        <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="normalAttackModalTitle">
+            <div class="modal-title" id="normalAttackModalTitle">通常攻撃設定</div>
+            <div class="form-group">
+                <label>アクションスキル</label>
+                <select id="normalAttackActionSelect" class="form-control" onchange="onNormalAttackActionSkillChanged()"></select>
+            </div>
+            <div class="form-group" style="margin-bottom: 0;">
+                <label>このユニットで使うスキル名</label>
+                <input id="normalAttackDisplayNameInput" type="text" class="form-control" placeholder="例: 通常攻撃">
+            </div>
+            <div class="modal-actions">
+                <button type="button" class="btn btn-secondary" onclick="closeNormalAttackModal()">キャンセル</button>
+                <button type="button" class="btn" onclick="saveNormalAttackModal()">保存</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- そのほかのアクションスキル設定モーダル -->
+    <div id="otherActionSkillsModal" class="modal-overlay" onclick="onOtherActionSkillsModalOverlayClick(event)">
+        <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="otherActionSkillsModalTitle">
+            <div class="modal-title" id="otherActionSkillsModalTitle">そのほかのアクションスキル追加</div>
+            <div class="form-group" style="margin-bottom: 12px;">
+                <label>アクションスキル（複数選択可）</label>
+                <div id="otherActionSkillsOptionList" class="modal-option-list"></div>
+            </div>
+            <div class="form-group" style="margin-bottom: 0;">
+                <label>このユニットで使うスキル名</label>
+                <div>
+                    <input id="otherActionSkillDisplayNameInput" type="text" class="form-control" placeholder="例: サブスキル名" oninput="onOtherActionSkillDisplayNameInput()">
+                    <div id="otherActionSkillDisplayNameHint" class="modal-help"></div>
+                </div>
+            </div>
+            <div class="modal-actions">
+                <button type="button" class="btn btn-secondary" onclick="closeOtherActionSkillsModal()">キャンセル</button>
+                <button type="button" class="btn" onclick="saveOtherActionSkillsModal()">追加</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const schoolOptions = ['トリニティ', 'ゲヘナ', 'ミレニアム', 'アビドス', '百鬼夜行', '山海経', 'レッドウィンター', 'アリウス', 'ワルキューレ', 'SRT', 'その他'];
+        const costRankOptions = ['★', '★★', '★★★', '★★★★', '★★★★★'];
+        const weaponTypeOptions = ['ノーマル', '爆発', '貫通', '分解', '神秘', '振動'];
+        const armorTypeOptions = ['通常装甲', '軽装備', '重装甲', '複合装甲', '特殊装甲', '弾力装甲'];
+        const classificationOptions = ['人型', '機械', '飛翔体'];
+        const levels = [1, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100];
+
+        const categories = [
+            { id: 'unit', name: 'ユニット' },
+            { id: 'action', name: 'アクションスキル' },
+            { id: 'reaction', name: 'リアクションスキル' },
+            { id: 'support', name: 'サポートスキル' },
+            { id: 'move', name: 'ムーブスキル' }
+        ];
+
+        function createDefaultState() {
+            return {
+                selectedCategoryId: 'unit',
+                items: [
+                    {
+                        id: '1',
+                        categoryId: 'unit',
+                        isReleased: true,
+                        showInUnitList: true,
+                        costRank: '★★★',
+                        weaponType: '爆発',
+                        armorType: '軽装備',
+                        classifications: ['人型'],
+                        name: 'シロコ',
+                        displayName: 'シロコ',
+                        fullName: '砂狼シロコ',
+                        school: 'アビドス',
+                        club: '対策委員会',
+                        normalAttackActionSkillId: '',
+                        normalAttackDisplayName: '',
+                        otherActionSkills: [],
+                        stats: {
+                            HP: { 1: 100, 100: 1000 },
+                            SP: { 1: 50, 100: 500 },
+                            physicalAttack: { 1: 20, 100: 200 },
+                            physicalDefense: { 1: 10, 100: 100 },
+                            MOVE: 5,
+                            JUMP: 2,
+                            AGI: 0,
+                            physicalEvasionRate: 0,
+                            criticalDamageRate: 0,
+                            criticalRate: 0,
+                            reactionSkillRate: 0,
+                            buffApplyRate: 0,
+                            debuffApplyRate: 0,
+                            buffReceiveRate: 0,
+                            debuffReceiveRate: 0
+                        }
+                    }
+                ],
+                openTabIds: ['1'],
+                activeTabId: '1'
+            };
+        }
+
+        let state = createDefaultState();
+
+        let contextTargetTabId = null;
+        let contextTargetItemId = null;
+        let actionSkillEditContext = null;
+        let actionSkillContextSkillId = null;
+        let otherActionSkillsTargetUnitId = null;
+        let otherActionSkillsModalSelection = [];
+        let saveTimerId = null;
+        let saveIndicatorTimerId = null;
+
+        const saved = localStorage.getItem('threepane_editor_data');
+        if (saved) {
+            try {
+                const parsed = JSON.parse(saved);
+                if (parsed && Array.isArray(parsed.items)) {
+                    state.items = parsed.items;
+                    if (Array.isArray(parsed.openTabIds)) {
+                        state.openTabIds = parsed.openTabIds.filter(id => state.items.some(i => i.id === id));
+                    }
+                    if (parsed.activeTabId && state.openTabIds.includes(parsed.activeTabId)) {
+                        state.activeTabId = parsed.activeTabId;
+                    } else if (state.openTabIds.length > 0) {
+                        state.activeTabId = state.openTabIds[state.openTabIds.length - 1];
+                    } else {
+                        state.activeTabId = null;
+                    }
+                    if (parsed.selectedCategoryId && categories.some(c => c.id === parsed.selectedCategoryId)) {
+                        state.selectedCategoryId = parsed.selectedCategoryId;
+                    }
+                }
+            } catch(e) {}
+        }
+
+        function render() {
+            renderCategories();
+            renderItems();
+            renderTabs();
+            renderEditor();
+        }
+
+        function renderCategories() {
+            const container = document.getElementById('categoryList');
+            container.innerHTML = '';
+            categories.forEach(cat => {
+                const div = document.createElement('div');
+                div.className = `category-item ${cat.id === state.selectedCategoryId ? 'active' : ''}`;
+                div.textContent = cat.name;
+                div.onclick = () => {
+                    state.selectedCategoryId = cat.id;
+                    render();
+                };
+                container.appendChild(div);
+            });
+        }
+
+        function renderItems() {
+            const container = document.getElementById('itemList');
+            container.innerHTML = '';
+            
+            const filteredItems = state.items.filter(item => item.categoryId === state.selectedCategoryId);
+            
+            if (filteredItems.length === 0) {
+                container.innerHTML = '<div style="padding:10px; color:var(--text-muted); font-size:13px;">アイテムがありません</div>';
+                return;
+            }
+
+            filteredItems.forEach(item => {
+                const div = document.createElement('div');
+                const isSelectedTab = state.activeTabId === item.id;
+                const releasedClass = item.isReleased ? 'is-released' : '';
+                div.className = `item-row ${isSelectedTab ? 'selected' : ''} ${releasedClass}`;
+                
+                div.innerHTML = `
+                    <div class="item-title">${escapeHtml(item.name || '無題')}</div>
+                    <!---<div class="item-desc">${escapeHtml(item.fullName || item.school || '')}</div>--->
+                `;
+                
+                div.onclick = () => openTab(item.id);
+                
+                div.oncontextmenu = (e) => {
+                    e.preventDefault();
+                    contextTargetItemId = item.id;
+                    showItemContextMenu(e.pageX, e.pageY);
+                };
+
+                container.appendChild(div);
+            });
+        }
+
+        function renderTabs() {
+            const container = document.getElementById('tabHeader');
+            container.innerHTML = '';
+
+            if (state.openTabIds.length === 0) return;
+
+            state.openTabIds.forEach(id => {
+                const item = state.items.find(i => i.id === id);
+                if (!item) return;
+
+                const tab = document.createElement('div');
+                tab.className = `tab ${id === state.activeTabId ? 'active' : ''}`;
+                tab.innerHTML = `
+                    <span>${escapeHtml(item.name || '無題')}</span>
+                    <button class="close-btn" onclick="closeTab(event, '${id}')">×</button>
+                `;
+                
+                tab.onclick = () => {
+                    state.activeTabId = id;
+                    state.selectedCategoryId = item.categoryId;
+                    render();
+                    requestSaveToLocalStorage();
+                };
+
+                tab.oncontextmenu = (e) => {
+                    e.preventDefault();
+                    contextTargetTabId = id;
+                    showContextMenu(e.pageX, e.pageY);
+                };
+
+                container.appendChild(tab);
+            });
+        }
+
+        function renderEditor() {
+            const container = document.getElementById('editorContent');
+            
+            if (!state.activeTabId || !state.openTabIds.includes(state.activeTabId)) {
+                container.innerHTML = '<div class="empty-state">編集するアイテムを選択するか、タブを開いてください。</div>';
+                return;
+            }
+
+            const currentItem = state.items.find(i => i.id === state.activeTabId);
+            if (!currentItem) {
+                container.innerHTML = '<div class="empty-state">アイテムが見つかりません。</div>';
+                return;
+            }
+
+            if (currentItem.categoryId === 'unit') {
+                const schoolOptionsHtml = schoolOptions.map(school => 
+                    `<option value="${school}" ${currentItem.school === school ? 'selected' : ''}>${school}</option>`
+                ).join('');
+
+                const costRankButtons = costRankOptions.map(rank => 
+                    `<div class="radio-btn ${currentItem.costRank === rank ? 'active' : ''}" onclick="updateCurrentItem('costRank', '${rank}')">${rank}</div>`
+                ).join('');
+
+                const weaponTypeButtons = weaponTypeOptions.map(type => 
+                    `<div class="radio-btn ${currentItem.weaponType === type ? 'active' : ''}" onclick="updateCurrentItem('weaponType', '${type}')">${type}</div>`
+                ).join('');
+
+                const armorTypeButtons = armorTypeOptions.map(type => 
+                    `<div class="radio-btn ${currentItem.armorType === type ? 'active' : ''}" onclick="updateCurrentItem('armorType', '${type}')">${type}</div>`
+                ).join('');
+
+                const currentClassifications = Array.isArray(currentItem.classifications) ? currentItem.classifications : [];
+                const classificationButtons = classificationOptions.map(cls => {
+                    const isActive = currentClassifications.includes(cls);
+                    return `<div class="radio-btn ${isActive ? 'active' : ''}" onclick="toggleClassification('${cls}')">${cls}</div>`;
+                }).join('');
+                const otherActionSkillsRaw = Array.isArray(currentItem.otherActionSkills) ? currentItem.otherActionSkills : [];
+                const otherActionSkills = otherActionSkillsRaw
+                    .filter(entry => entry && entry.actionSkillId)
+                    .map(entry => ({
+                        actionSkillId: entry.actionSkillId,
+                        displayName: typeof entry.displayName === 'string' ? entry.displayName : ''
+                    }));
+                currentItem.otherActionSkills = otherActionSkills;
+
+                const otherActionSkillsListHtml = otherActionSkills.length === 0
+                    ? '<div class="sub-action-skill-empty">登録されていません</div>'
+                    : `<div class="sub-action-skill-list">${otherActionSkills.map((entry, index) => {
+                        const linkedSkill = state.items.find(i => i.id === entry.actionSkillId && i.categoryId === 'action');
+                        const validClass = linkedSkill && linkedSkill.isReleased ? 'is-valid' : '';
+                        const sourceName = linkedSkill ? (linkedSkill.name || '名称未設定') : '削除済みスキル';
+                        const displayName = entry.displayName || (linkedSkill ? (linkedSkill.defaultName || linkedSkill.name || '名称未設定') : '名称未設定');
+                        return `
+                            <div class="sub-action-skill-item ${validClass}" oncontextmenu="onActionSkillContextMenu(event, '${entry.actionSkillId}')">
+                                <div class="sub-action-skill-meta">
+                                    <div class="sub-action-skill-name">${escapeHtml(displayName)}</div>
+                                    <div class="sub-action-skill-source">元スキル: ${escapeHtml(sourceName)}</div>
+                                </div>
+                                <div class="sub-action-skill-actions">
+                                    <button type="button" class="btn btn-secondary" onclick="openActionSkillEditModal('other', ${index})">設定</button>
+                                    <button type="button" class="btn btn-secondary" onclick="removeOtherActionSkill(${index})">削除</button>
+                                </div>
+                            </div>
+                        `;
+                    }).join('')}</div>`;
+                const linkedActionSkill = state.items.find(i => i.id === currentItem.normalAttackActionSkillId && i.categoryId === 'action');
+                const hasNormalAttack = Boolean(currentItem.normalAttackActionSkillId);
+                const normalAttackDisplayHtml = hasNormalAttack
+                    ? (() => {
+                        const validClass = linkedActionSkill && linkedActionSkill.isReleased ? 'is-valid' : '';
+                        const displayName = currentItem.normalAttackDisplayName
+                            || (linkedActionSkill ? (linkedActionSkill.defaultName || linkedActionSkill.name || '名称未設定') : '名称未設定');
+                        const sourceName = linkedActionSkill ? (linkedActionSkill.name || '名称未設定') : '削除済みスキル';
+                        const sourceSkillId = currentItem.normalAttackActionSkillId || '';
+                        return `
+                            <div class="sub-action-skill-list">
+                                <div class="sub-action-skill-item ${validClass}" oncontextmenu="onActionSkillContextMenu(event, '${sourceSkillId}')">
+                                    <div class="sub-action-skill-meta">
+                                        <div class="sub-action-skill-name">${escapeHtml(displayName)}</div>
+                                        <div class="sub-action-skill-source">元スキル: ${escapeHtml(sourceName)}</div>
+                                    </div>
+                                    <div class="sub-action-skill-actions">
+                                        <button type="button" class="btn btn-secondary" onclick="openActionSkillEditModal('normal')">設定</button>
+                                        <button type="button" class="btn btn-secondary" onclick="clearNormalAttack()">削除</button>
+                                    </div>
+                                </div>
+                            </div>
+                        `;
+                    })()
+                    : '<div class="sub-action-skill-empty">登録されていません</div>';
+
+                if (!currentItem.stats) {
+                    currentItem.stats = {
+                        HP: {}, SP: {}, physicalAttack: {}, physicalDefense: {},
+                        MOVE: 0, JUMP: 0, AGI: 0,
+                        physicalEvasionRate: 0,
+                        criticalDamageRate: 0,
+                        criticalRate: 0,
+                        reactionSkillRate: 0,
+                        buffApplyRate: 0,
+                        debuffApplyRate: 0,
+                        buffReceiveRate: 0,
+                        debuffReceiveRate: 0
+                    };
+                }
+
+                const isSingleStatMissing = (statName) => {
+                    const v = currentItem.stats[statName];
+                    return v === undefined || v === null || v === '';
+                };
+                const getSingleStatClass = (statName) => isSingleStatMissing(statName) ? 'form-control required-empty' : 'form-control';
+                const getSingleStatTitle = (statName) => isSingleStatMissing(statName) ? 'この項目は必須です' : '';
+
+                let statRowsHtml = '';
+                const coreStatConfigs = [
+                    { key: 'HP', label: 'HP' },
+                    { key: 'SP', label: 'SP' },
+                    { key: 'physicalAttack', label: '物理攻撃力' },
+                    { key: 'physicalDefense', label: '物理防御力' }
+                ];
+                coreStatConfigs.forEach(({ key, label }) => {
+                    let cells = `<td>${label}</td>`;
+                    const statValues = currentItem.stats[key] || {};
+                    const isAllEmptyInRow = levels.every(lvl => statValues[lvl] === undefined || statValues[lvl] === '');
+                    levels.forEach(lvl => {
+                        const val = (currentItem.stats[key] && currentItem.stats[key][lvl] !== undefined) ? currentItem.stats[key][lvl] : '';
+                        const hasError = isAllEmptyInRow;
+                        const inputClass = hasError ? 'status-input required-empty' : 'status-input';
+                        const inputTitle = hasError ? 'この行を1つ以上入力してください' : '';
+                        cells += `<td><input type="number" data-stat="${key}" data-level="${lvl}" class="${inputClass}" value="${val}" title="${inputTitle}" oninput="updateStat('${key}', ${lvl}, this.value)"></td>`;
+                    });
+                    statRowsHtml += `<tr>${cells}</tr>`;
+                });
+
+                const singleStatRowGroups = [
+                    [
+                        { key: 'MOVE', label: 'MOVE', colspan: 2 },
+                        { key: 'physicalEvasionRate', label: '物理回避率[%]', colspan: 3 },
+                        { key: 'buffApplyRate', label: '強化付与成功率[%]', colspan: 3 },
+                        { key: 'criticalDamageRate', label: 'クリティカル威力[%]', colspan: 4 }
+                    ],
+                    [
+                        { key: 'JUMP', label: 'JUMP', colspan: 2 },
+                        { colspan: 3 },
+                        { key: 'debuffApplyRate', label: '弱体付与成功率[%]', colspan: 3 },
+                        { key: 'criticalRate', label: 'クリティカル発生率[%]', colspan: 4 },
+                    ],
+                    [
+                        { key: 'AGI', label: 'AGI', colspan: 2 },
+                        { colspan: 3 },
+                        { key: 'buffReceiveRate', label: '被強化付与成功率[%]', colspan: 3 },
+                        { key: 'reactionSkillRate', label: 'リアクションスキル発生率[%]', colspan: 4 }
+                    ],
+                    [
+                        { colspan: 2 },
+                        { colspan: 3 },
+                        { key: 'debuffReceiveRate', label: '被弱体付与成功率[%]', colspan: 3 },
+                        { colspan: 4 }
+                    ]
+                ];
+                const singleStatRowsHtml = singleStatRowGroups.map((rowStats) => {
+                    let usedColumns = 0;
+                    const rowCells = rowStats.map(stat => {
+                        if (!stat || !stat.key) {
+                            const placeholderColspan = stat && Number.isInteger(stat.colspan) ? stat.colspan : 1;
+                            usedColumns += placeholderColspan;
+                            return `<td class="single-stat-placeholder-cell" colspan="${placeholderColspan}"></td>`;
+                        }
+                        const colspan = Number.isInteger(stat.colspan) ? stat.colspan : 3;
+                        usedColumns += colspan;
+                        const value = currentItem.stats[stat.key] !== undefined ? currentItem.stats[stat.key] : '';
+                        const hasError = isSingleStatMissing(stat.key);
+                        const inputClass = hasError ? 'status-input single-stat-input required-empty' : 'status-input single-stat-input';
+                        const inputTitle = hasError ? 'この項目は必須です' : '';
+                        return `
+                            <th scope="row" class="single-stat-label-cell" colspan="${colspan - 1}">${stat.label}</th>
+                            <td class="single-stat-input-cell">
+                                <input type="number" class="${inputClass}" title="${inputTitle}" value="${value}" oninput="updateSingleStat('${stat.key}', this.value, this)">
+                            </td>
+                        `;
+                    }).join('');
+                    // 12列に満たない場合は空白セルで埋める
+                    const fillerColumns = 12 - usedColumns;
+                    const fillerCell = fillerColumns > 0 ? `<td colspan="${fillerColumns}"></td>` : '';
+                    return `<tr>${rowCells}${fillerCell}</tr>`;
+                }).join('');
+
+                container.innerHTML = `
+                    <div class="form-group">
+                        <label class="checkbox-label">
+                            <input type="checkbox" ${currentItem.isReleased ? 'checked' : ''} onchange="updateCurrentItem('isReleased', this.checked)">
+                            リリース可能
+                        </label>
+                    </div>
+                    <div class="form-group">
+                        <label class="checkbox-label">
+                            <input type="checkbox" ${currentItem.showInUnitList !== false ? 'checked' : ''} onchange="updateCurrentItem('showInUnitList', this.checked)">
+                            ユニット情報リストに表示する
+                        </label>
+                    </div>
+                    <div class="form-group">
+                        <label>名前（ツール用）</label>
+                        <input type="text" class="form-control" value="${escapeHtml(currentItem.name || '')}" oninput="updateCurrentItem('name', this.value)">
+                    </div>
+                    <div class="form-group form-group--stack">
+                        <div class="form-group-stack-row">
+                            <label>名前（ゲーム内使用）</label>
+                            <input type="text" class="form-control" value="${escapeHtml(currentItem.displayName || '')}" oninput="updateCurrentItem('displayName', this.value)">
+                        </div>
+                        <div class="form-group-stack-row">
+                            <label>フルネーム（ゲーム内使用）</label>
+                            <input type="text" class="form-control" value="${escapeHtml(currentItem.fullName || '')}" oninput="updateCurrentItem('fullName', this.value)">
+                        </div>
+                    </div>
+                    <div class="form-group form-group--stack">
+                        <div class="form-group-stack-row">
+                          <label>学園</label>
+                          <select class="form-control" onchange="updateCurrentItem('school', this.value)">
+                              <option value="">未選択</option>
+                              ${schoolOptionsHtml}
+                          </select>
+                        </div>
+                        <div class="form-group-stack-row">
+                          <label>部活（ゲーム内使用）</label>
+                          <input type="text" class="form-control" value="${escapeHtml(currentItem.club || '')}" oninput="updateCurrentItem('club', this.value)">
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>コストランク</label>
+                        <div class="radio-button-group">
+                            ${costRankButtons}
+                        </div>
+                    </div>
+                    <div class="form-group form-group--stack">
+                        <div class="form-group-stack-row">
+                            <label>武器属性</label>
+                            <div class="radio-button-group">
+                                ${weaponTypeButtons}
+                            </div>
+                        </div>
+                        <div class="form-group-stack-row">
+                            <label>装甲属性</label>
+                            <div class="radio-button-group">
+                                ${armorTypeButtons}
+                            </div>
+                        </div>
+                        <div class="form-group-stack-row">
+                            <label>分類属性（複数選択可）</label>
+                            <div class="radio-button-group">
+                                ${classificationButtons}
+                            </div>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>ステータス設定</label>
+                        <div class="status-table-container">
+                            <table class="status-table">
+                                <thead>
+                                    <tr>
+                                        <th></th>
+                                        ${levels.map(l => `<th>Lv${l}</th>`).join('')}
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${statRowsHtml}
+                                    <tr class="status-divider-row"><td colspan="${levels.length + 1}"></td></tr>
+                                    ${singleStatRowsHtml}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    <div class="form-group form-group--stack">
+                        <div class="form-group-stack-row">
+                            <label>通常攻撃</label>
+                            <div>
+                                ${normalAttackDisplayHtml}
+                                ${hasNormalAttack ? '' : '<button type="button" class="btn" onclick="openActionSkillEditModal(\'normal\')">設定</button>'}
+                            </div>
+                        </div>
+                    </div>
+                    <div class="form-group form-group--stack">
+                        <div class="form-group-stack-row">
+                            <label>そのほかのアクションスキル</label>
+                            <div>
+                                ${otherActionSkillsListHtml}
+                                <button type="button" class="btn" onclick="openOtherActionSkillsModal()">＋ 追加</button>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            } else {
+                if (!currentItem.effectParams || typeof currentItem.effectParams !== 'object') {
+                    currentItem.effectParams = {};
+                }
+
+                if (!Number.isInteger(currentItem.effectParamCount) || currentItem.effectParamCount < 0) {
+                    const existingIndexes = Object.keys(currentItem.effectParams)
+                        .map(k => Number(k))
+                        .filter(n => Number.isInteger(n) && n >= 0);
+                    currentItem.effectParamCount = existingIndexes.length > 0 ? Math.max(...existingIndexes) + 1 : 0;
+                }
+
+                const placeholderCount = currentItem.effectParamCount;
+                const placeholderConfigHtml = placeholderCount === 0
+                    ? '<div class="placeholder-help">プレースホルダ数を1以上にすると、ここに配列入力欄が表示されます。</div>'
+                    : Array.from({ length: placeholderCount }, (_, index) => {
+                        const values = Array.isArray(currentItem.effectParams[index]) ? currentItem.effectParams[index] : [];
+                        const csv = values.join(', ');
+                        return `
+                            <div class="placeholder-row">
+                                <div class="placeholder-token">{${index}}</div>
+                                <input type="text" class="form-control" value="${csv}" oninput="updateEffectArray(${index}, this.value)" placeholder="例: 100,120,140,160">
+                            </div>
+                        `;
+                    }).join('');
+
+                container.innerHTML = `
+                    <div class="form-group">
+                        <label class="checkbox-label">
+                            <input type="checkbox" ${currentItem.isReleased ? 'checked' : ''} onchange="updateCurrentItem('isReleased', this.checked)">
+                            リリース可能
+                        </label>
+                    </div>
+                    <div class="form-group">
+                        <label>スキル名（ツール用）</label>
+                        <input type="text" class="form-control" value="${escapeHtml(currentItem.name || '')}" oninput="updateCurrentItem('name', this.value)">
+                    </div>
+                    <div class="form-group">
+                        <label>デフォルトの名前（ツール用）</label>
+                        <input type="text" class="form-control" value="${escapeHtml(currentItem.defaultName || '')}" oninput="updateCurrentItem('defaultName', this.value)">
+                    </div>
+                    <div class="form-group">
+                        <label>効果設定（テンプレートと変数）</label>
+                        <div class="placeholder-config">
+                            <textarea class="form-control" style="height: 150px; margin-bottom: 10px;" oninput="updateCurrentItem('description', this.value)">${escapeHtml(currentItem.description || '')}</textarea>
+                            <div class="placeholder-header">
+                                <span>変数スロット数</span>
+                                <input type="number" min="0" step="1" class="form-control placeholder-count-input" value="${currentItem.effectParamCount}" onchange="updateEffectParamCount(this.value)">
+                            </div>
+                            ${placeholderConfigHtml}
+                        </div>
+                    </div>
+                `;
+            }
+        }
+
+        function openTab(id) {
+            if (!state.openTabIds.includes(id)) {
+                state.openTabIds.push(id);
+            }
+            state.activeTabId = id;
+            render();
+            requestSaveToLocalStorage();
+        }
+
+        function closeTab(event, id) {
+            event.stopPropagation();
+            state.openTabIds = state.openTabIds.filter(tabId => tabId !== id);
+            
+            if (state.activeTabId === id) {
+                if (state.openTabIds.length > 0) {
+                    state.activeTabId = state.openTabIds[state.openTabIds.length - 1];
+                } else {
+                    state.activeTabId = null;
+                }
+            }
+            render();
+            requestSaveToLocalStorage();
+        }
+
+        function showContextMenu(x, y) {
+            hideAllContextMenus();
+            const menu = document.getElementById('contextMenu');
+            menu.style.left = x + 'px';
+            menu.style.top = y + 'px';
+            menu.style.display = 'block';
+        }
+
+        function showItemContextMenu(x, y) {
+            hideAllContextMenus();
+            const menu = document.getElementById('itemContextMenu');
+            menu.style.left = x + 'px';
+            menu.style.top = y + 'px';
+            menu.style.display = 'block';
+        }
+
+        function showNormalAttackContextMenu(x, y) {
+            hideAllContextMenus();
+            const menu = document.getElementById('normalAttackContextMenu');
+            menu.style.left = x + 'px';
+            menu.style.top = y + 'px';
+            menu.style.display = 'block';
+        }
+
+        function hideAllContextMenus() {
+            document.getElementById('contextMenu').style.display = 'none';
+            document.getElementById('itemContextMenu').style.display = 'none';
+            document.getElementById('normalAttackContextMenu').style.display = 'none';
+        }
+
+        window.addEventListener('click', () => {
+            hideAllContextMenus();
+        });
+
+        function closeOtherTabs() {
+            if (contextTargetTabId) {
+                state.openTabIds = [contextTargetTabId];
+                state.activeTabId = contextTargetTabId;
+                render();
+                requestSaveToLocalStorage();
+            }
+        }
+
+        function closeAllTabs() {
+            state.openTabIds = [];
+            state.activeTabId = null;
+            render();
+            requestSaveToLocalStorage();
+        }
+
+        function deleteContextItem() {
+            if (!contextTargetItemId) return;
+            
+            state.items = state.items.filter(i => i.id !== contextTargetItemId);
+            state.openTabIds = state.openTabIds.filter(id => id !== contextTargetItemId);
+            
+            if (state.activeTabId === contextTargetItemId) {
+                if (state.openTabIds.length > 0) {
+                    state.activeTabId = state.openTabIds[state.openTabIds.length - 1];
+                } else {
+                    state.activeTabId = null;
+                }
+            }
+            
+            render();
+            requestSaveToLocalStorage();
+            contextTargetItemId = null;
+        }
+
+        function onActionSkillContextMenu(event, skillId) {
+            event.preventDefault();
+            const currentItem = state.items.find(i => i.id === state.activeTabId);
+            if (!currentItem || currentItem.categoryId !== 'unit') return;
+
+            if (!skillId) return;
+            actionSkillContextSkillId = skillId;
+            showNormalAttackContextMenu(event.pageX, event.pageY);
+        }
+
+        function editNormalAttackSourceSkill() {
+            if (!actionSkillContextSkillId) return;
+
+            const sourceSkill = state.items.find(i => i.id === actionSkillContextSkillId && i.categoryId === 'action');
+            if (!sourceSkill) return;
+
+            state.selectedCategoryId = sourceSkill.categoryId;
+            openTab(sourceSkill.id);
+            actionSkillContextSkillId = null;
+        }
+
+        function exportJSON() {
+            const exportData = {
+                items: state.items,
+                openTabIds: state.openTabIds,
+                activeTabId: state.activeTabId,
+                selectedCategoryId: state.selectedCategoryId
+            };
+            const jsonStr = JSON.stringify(exportData, null, 2);
+            const blob = new Blob([jsonStr], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'editor_data.json';
+            a.click();
+            
+            URL.revokeObjectURL(url);
+        }
+
+        function importJSON(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const importedState = JSON.parse(e.target.result);
+                    if (importedState && Array.isArray(importedState.items)) {
+                        state.items = importedState.items;
+                        if (Array.isArray(importedState.openTabIds)) {
+                            state.openTabIds = importedState.openTabIds.filter(id => state.items.some(i => i.id === id));
+                        } else {
+                            state.openTabIds = [];
+                        }
+                        if (importedState.activeTabId && state.openTabIds.includes(importedState.activeTabId)) {
+                            state.activeTabId = importedState.activeTabId;
+                        } else if (state.openTabIds.length > 0) {
+                            state.activeTabId = state.openTabIds[state.openTabIds.length - 1];
+                        } else {
+                            state.activeTabId = null;
+                        }
+                        if (importedState.selectedCategoryId && categories.some(c => c.id === importedState.selectedCategoryId)) {
+                            state.selectedCategoryId = importedState.selectedCategoryId;
+                        }
+                        render();
+                        requestSaveToLocalStorage();
+                        alert('JSONファイルを正常に読み込みました。');
+                    } else {
+                        alert('無効なデータ形式です。');
+                    }
+                } catch (err) {
+                    alert('JSONファイルの解析に失敗しました: ' + err.message);
+                }
+                event.target.value = '';
+            };
+            reader.readAsText(file);
+        }
+
+        function createNewData() {
+            const shouldReset = confirm('現在の編集中データをすべて破棄して、新規作成します。よろしいですか？');
+            if (!shouldReset) return;
+
+            localStorage.removeItem('threepane_editor_data');
+            state = createDefaultState();
+            render();
+            requestSaveToLocalStorage();
+        }
+
+        function updateCurrentItem(key, val) {
+            const currentItem = state.items.find(i => i.id === state.activeTabId);
+            if (currentItem) {
+                currentItem[key] = val;
+                requestSaveToLocalStorage();
+                if (key === 'name' || key === 'fullName' || key === 'isReleased') {
+                    renderItems();
+                    renderTabs();
+                } else if (
+                    currentItem.categoryId === 'unit' &&
+                    (key === 'costRank' || key === 'weaponType' || key === 'armorType')
+                ) {
+                    renderEditor();
+                }
+            }
+        }
+
+        function updateEffectParamCount(rawValue) {
+            const currentItem = state.items.find(i => i.id === state.activeTabId);
+            if (!currentItem) return;
+
+            const parsed = Number(rawValue);
+            const count = Number.isFinite(parsed) ? Math.max(0, Math.floor(parsed)) : 0;
+            currentItem.effectParamCount = count;
+            requestSaveToLocalStorage();
+            renderEditor();
+        }
+
+        function updateEffectArray(index, csvText) {
+            const currentItem = state.items.find(i => i.id === state.activeTabId);
+            if (!currentItem) return;
+
+            if (!currentItem.effectParams || typeof currentItem.effectParams !== 'object') {
+                currentItem.effectParams = {};
+            }
+
+            const trimmed = csvText.trim();
+            if (trimmed === '') {
+                delete currentItem.effectParams[index];
+                requestSaveToLocalStorage();
+                return;
+            }
+
+            const values = trimmed
+                .split(',')
+                .map(v => v.trim())
+                .filter(v => v !== '')
+                .map(v => Number(v))
+                .filter(v => !Number.isNaN(v));
+
+            currentItem.effectParams[index] = values;
+            requestSaveToLocalStorage();
+        }
+
+        function openActionSkillEditModal(mode, index = null) {
+            const currentItem = state.items.find(i => i.id === state.activeTabId);
+            if (!currentItem || currentItem.categoryId !== 'unit') return;
+
+            actionSkillEditContext = {
+                mode,
+                unitId: currentItem.id,
+                index: Number.isInteger(index) ? index : null
+            };
+
+            const modal = document.getElementById('normalAttackModal');
+            const actionSelect = document.getElementById('normalAttackActionSelect');
+            const displayNameInput = document.getElementById('normalAttackDisplayNameInput');
+            const modalTitle = document.getElementById('normalAttackModalTitle');
+
+            const actionSkills = state.items.filter(item => item.categoryId === 'action');
+            const optionsHtml = ['<option value="">未選択</option>']
+                .concat(actionSkills.map(skill => `<option value="${skill.id}">${escapeHtml(skill.name || '無題')}</option>`))
+                .join('');
+
+            actionSelect.innerHTML = optionsHtml;
+            if (mode === 'other') {
+                const entries = Array.isArray(currentItem.otherActionSkills) ? currentItem.otherActionSkills : [];
+                const entry = (Number.isInteger(index) && index >= 0 && index < entries.length) ? entries[index] : null;
+                if (!entry) return;
+
+                actionSelect.value = entry.actionSkillId || '';
+                displayNameInput.value = entry.displayName || '';
+                modalTitle.textContent = 'そのほかのアクションスキル設定';
+            } else {
+                actionSelect.value = currentItem.normalAttackActionSkillId || '';
+                displayNameInput.value = currentItem.normalAttackDisplayName || '';
+                modalTitle.textContent = '通常攻撃設定';
+            }
+
+            modal.classList.add('show');
+            displayNameInput.focus();
+        }
+
+        function openNormalAttackModal() {
+            openActionSkillEditModal('normal');
+        }
+
+        function onNormalAttackActionSkillChanged() {
+            const actionSelect = document.getElementById('normalAttackActionSelect');
+            const displayNameInput = document.getElementById('normalAttackDisplayNameInput');
+            if (!actionSelect || !displayNameInput) return;
+
+            const selectedActionId = actionSelect.value;
+            const actionSkill = state.items.find(item => item.id === selectedActionId && item.categoryId === 'action');
+            displayNameInput.value = actionSkill ? (actionSkill.defaultName || '') : '';
+        }
+
+        function closeNormalAttackModal() {
+            const modal = document.getElementById('normalAttackModal');
+            modal.classList.remove('show');
+            actionSkillEditContext = null;
+        }
+
+        function onNormalAttackModalOverlayClick(event) {
+            if (event.target && event.target.id === 'normalAttackModal') {
+                closeNormalAttackModal();
+            }
+        }
+
+        function saveNormalAttackModal() {
+            if (!actionSkillEditContext || !actionSkillEditContext.unitId) return;
+
+            const unit = state.items.find(i => i.id === actionSkillEditContext.unitId);
+            if (!unit || unit.categoryId !== 'unit') {
+                closeNormalAttackModal();
+                return;
+            }
+
+            const actionSelect = document.getElementById('normalAttackActionSelect');
+            const displayNameInput = document.getElementById('normalAttackDisplayNameInput');
+
+            const selectedActionId = actionSelect.value;
+            const displayName = displayNameInput.value.trim();
+            if (actionSkillEditContext.mode === 'other') {
+                if (!Array.isArray(unit.otherActionSkills)) {
+                    unit.otherActionSkills = [];
+                }
+                const idx = actionSkillEditContext.index;
+                if (!Number.isInteger(idx) || idx < 0 || idx >= unit.otherActionSkills.length) {
+                    closeNormalAttackModal();
+                    return;
+                }
+
+                const duplicate = unit.otherActionSkills.some((entry, i) => i !== idx && entry.actionSkillId === selectedActionId);
+                if (selectedActionId && duplicate) {
+                    alert('同じアクションスキルは既に登録されています。');
+                    return;
+                }
+
+                if (selectedActionId) {
+                    unit.otherActionSkills[idx].actionSkillId = selectedActionId;
+                    unit.otherActionSkills[idx].displayName = displayName;
+                } else {
+                    unit.otherActionSkills.splice(idx, 1);
+                }
+            } else {
+                if (selectedActionId) {
+                    unit.normalAttackActionSkillId = selectedActionId;
+                } else {
+                    delete unit.normalAttackActionSkillId;
+                }
+
+                if (displayName) {
+                    unit.normalAttackDisplayName = displayName;
+                } else {
+                    delete unit.normalAttackDisplayName;
+                }
+            }
+
+            requestSaveToLocalStorage();
+            closeNormalAttackModal();
+            renderEditor();
+        }
+
+        function clearNormalAttack() {
+            const currentItem = state.items.find(i => i.id === state.activeTabId);
+            if (!currentItem || currentItem.categoryId !== 'unit') return;
+
+            delete currentItem.normalAttackActionSkillId;
+            delete currentItem.normalAttackDisplayName;
+            requestSaveToLocalStorage();
+            renderEditor();
+        }
+
+        function openOtherActionSkillsModal() {
+            const currentItem = state.items.find(i => i.id === state.activeTabId);
+            if (!currentItem || currentItem.categoryId !== 'unit') return;
+
+            if (!Array.isArray(currentItem.otherActionSkills)) {
+                currentItem.otherActionSkills = [];
+            }
+
+            const modal = document.getElementById('otherActionSkillsModal');
+            const listEl = document.getElementById('otherActionSkillsOptionList');
+            const nameInput = document.getElementById('otherActionSkillDisplayNameInput');
+            const hintEl = document.getElementById('otherActionSkillDisplayNameHint');
+            const registeredIds = new Set(currentItem.otherActionSkills.map(entry => entry.actionSkillId));
+            const actionSkills = state.items.filter(item => item.categoryId === 'action' && !registeredIds.has(item.id));
+
+            otherActionSkillsTargetUnitId = currentItem.id;
+            otherActionSkillsModalSelection = [];
+            nameInput.value = '';
+
+            if (actionSkills.length === 0) {
+                listEl.innerHTML = '<div class="sub-action-skill-empty">追加可能なアクションスキルがありません</div>';
+            } else {
+                listEl.innerHTML = actionSkills.map(skill => `
+                    <label class="modal-option-item">
+                        <input type="checkbox" value="${skill.id}" onchange="onOtherActionSkillsSelectionChanged()">
+                        <span>${escapeHtml(skill.name || '無題')}</span>
+                    </label>
+                `).join('');
+            }
+
+            nameInput.disabled = true;
+            hintEl.textContent = '1つ選択すると、このユニットで使うスキル名を入力できます。';
+            modal.classList.add('show');
+        }
+
+        function onOtherActionSkillsSelectionChanged() {
+            const checkboxes = document.querySelectorAll('#otherActionSkillsOptionList input[type="checkbox"]');
+            const selectedIds = [];
+            checkboxes.forEach(cb => {
+                if (cb.checked) {
+                    selectedIds.push(cb.value);
+                }
+            });
+            otherActionSkillsModalSelection = selectedIds;
+
+            const nameInput = document.getElementById('otherActionSkillDisplayNameInput');
+            const hintEl = document.getElementById('otherActionSkillDisplayNameHint');
+            if (!nameInput || !hintEl) return;
+
+            if (selectedIds.length === 1) {
+                nameInput.disabled = false;
+                hintEl.textContent = 'このユニットで使うスキル名を指定できます（未入力ならデフォルト名）。';
+            } else if (selectedIds.length > 1) {
+                nameInput.value = '';
+                nameInput.disabled = true;
+                hintEl.textContent = '複数選択時はデフォルトの名前が使用されます。';
+            } else {
+                nameInput.value = '';
+                nameInput.disabled = true;
+                hintEl.textContent = '1つ選択すると、このユニットで使うスキル名を入力できます。';
+            }
+        }
+
+        function onOtherActionSkillDisplayNameInput() {
+            const nameInput = document.getElementById('otherActionSkillDisplayNameInput');
+            if (!nameInput) return;
+
+            if (otherActionSkillsModalSelection.length !== 1 && nameInput.value !== '') {
+                nameInput.value = '';
+            }
+        }
+
+        function closeOtherActionSkillsModal() {
+            const modal = document.getElementById('otherActionSkillsModal');
+            modal.classList.remove('show');
+            otherActionSkillsTargetUnitId = null;
+            otherActionSkillsModalSelection = [];
+        }
+
+        function onOtherActionSkillsModalOverlayClick(event) {
+            if (event.target && event.target.id === 'otherActionSkillsModal') {
+                closeOtherActionSkillsModal();
+            }
+        }
+
+        function saveOtherActionSkillsModal() {
+            if (!otherActionSkillsTargetUnitId) return;
+
+            const unit = state.items.find(i => i.id === otherActionSkillsTargetUnitId && i.categoryId === 'unit');
+            if (!unit) {
+                closeOtherActionSkillsModal();
+                return;
+            }
+
+            if (!Array.isArray(unit.otherActionSkills)) {
+                unit.otherActionSkills = [];
+            }
+
+            const selectedIds = Array.isArray(otherActionSkillsModalSelection) ? otherActionSkillsModalSelection : [];
+            if (selectedIds.length === 0) {
+                alert('追加するアクションスキルを選択してください。');
+                return;
+            }
+
+            const nameInput = document.getElementById('otherActionSkillDisplayNameInput');
+            const singleDisplayName = (nameInput && selectedIds.length === 1) ? nameInput.value.trim() : '';
+            const registeredIds = new Set(unit.otherActionSkills.map(entry => entry.actionSkillId));
+
+            selectedIds.forEach((skillId) => {
+                if (registeredIds.has(skillId)) return;
+                unit.otherActionSkills.push({
+                    actionSkillId: skillId,
+                    displayName: selectedIds.length === 1 ? singleDisplayName : ''
+                });
+            });
+
+            requestSaveToLocalStorage();
+            closeOtherActionSkillsModal();
+            renderEditor();
+        }
+
+        function removeOtherActionSkill(index) {
+            const currentItem = state.items.find(i => i.id === state.activeTabId);
+            if (!currentItem || currentItem.categoryId !== 'unit') return;
+            if (!Array.isArray(currentItem.otherActionSkills)) return;
+            if (index < 0 || index >= currentItem.otherActionSkills.length) return;
+
+            currentItem.otherActionSkills.splice(index, 1);
+            requestSaveToLocalStorage();
+            renderEditor();
+        }
+
+        function toggleClassification(cls) {
+            const currentItem = state.items.find(i => i.id === state.activeTabId);
+            if (currentItem) {
+                if (!Array.isArray(currentItem.classifications)) {
+                    currentItem.classifications = [];
+                }
+                const idx = currentItem.classifications.indexOf(cls);
+                if (idx > -1) {
+                    currentItem.classifications.splice(idx, 1);
+                } else {
+                    currentItem.classifications.push(cls);
+                }
+                requestSaveToLocalStorage();
+                renderEditor();
+            }
+        }
+
+        function applyStatRowValidation(currentItem, statName) {
+            const rowValues = currentItem.stats[statName] || {};
+            const isAllEmptyInRow = levels.every(lvl => rowValues[lvl] === undefined || rowValues[lvl] === '');
+            const inputs = document.querySelectorAll(`input.status-input[data-stat="${statName}"]`);
+
+            inputs.forEach(input => {
+                const hasError = isAllEmptyInRow;
+                input.classList.toggle('required-empty', hasError);
+                input.title = hasError ? 'この行を1つ以上入力してください' : '';
+            });
+        }
+
+        function updateStat(statName, level, val) {
+            const currentItem = state.items.find(i => i.id === state.activeTabId);
+            if (currentItem) {
+                if (!currentItem.stats) currentItem.stats = {
+                    HP: {}, SP: {}, physicalAttack: {}, physicalDefense: {},
+                    MOVE: 5, JUMP: 2, AGI: 128,
+                    physicalEvasionRate: 30,
+                    criticalDamageRate: 120,
+                    criticalRate: 30,
+                    reactionSkillRate: 10,
+                    buffApplyRate: 90,
+                    debuffApplyRate: 90,
+                    buffReceiveRate: 90,
+                    debuffReceiveRate: 90
+                };
+                if (!currentItem.stats[statName]) currentItem.stats[statName] = {};
+                
+                if (val === '') {
+                    delete currentItem.stats[statName][level];
+                } else {
+                    currentItem.stats[statName][level] = Number(val);
+                }
+
+                applyStatRowValidation(currentItem, statName);
+
+                requestSaveToLocalStorage();
+            }
+        }
+
+        function updateSingleStat(statName, val, inputEl) {
+            const currentItem = state.items.find(i => i.id === state.activeTabId);
+            if (currentItem) {
+                if (!currentItem.stats) currentItem.stats = {
+                    HP: {}, SP: {}, physicalAttack: {}, physicalDefense: {},
+                    MOVE: 5, JUMP: 2, AGI: 128,
+                    physicalEvasionRate: 30,
+                    criticalDamageRate: 120,
+                    criticalRate: 30,
+                    reactionSkillRate: 10,
+                    buffApplyRate: 90,
+                    debuffApplyRate: 90,
+                    buffReceiveRate: 90,
+                    debuffReceiveRate: 90
+                };
+
+                if (val === '') {
+                    delete currentItem.stats[statName];
+                } else {
+                    currentItem.stats[statName] = Number(val);
+                }
+
+                if (inputEl) {
+                    const hasError = val === '';
+                    inputEl.classList.toggle('required-empty', hasError);
+                    inputEl.title = hasError ? 'この項目は必須です' : '';
+                }
+
+                requestSaveToLocalStorage();
+            }
+        }
+
+        function addNewItem() {
+            const newId = Date.now().toString();
+            const baseItem = {
+                id: newId,
+                categoryId: state.selectedCategoryId,
+                isReleased: false,
+            };
+
+            const isUnit = state.selectedCategoryId === 'unit';
+            const newItem = isUnit
+                ? {
+                    ...baseItem,
+                    showInUnitList: true,
+                    costRank: '★★★',
+                    weaponType: '爆発',
+                    armorType: '軽装備',
+                    classifications: ['人型'],
+                    name: '無名のユニット',
+                    displayName: '無名のユニット',
+                    fullName: '無名のユニット',
+                    school: '',
+                    club: '',
+                    normalAttackActionSkillId: '',
+                    normalAttackDisplayName: '',
+                    otherActionSkills: [],
+                    stats: {
+                        HP: {}, SP: {}, physicalAttack: {}, physicalDefense: {},
+                        MOVE: 5, JUMP: 2, AGI: 128,
+                        physicalEvasionRate: 30,
+                        criticalDamageRate: 120,
+                        criticalRate: 30,
+                        reactionSkillRate: 10,
+                        buffApplyRate: 90,
+                        debuffApplyRate: 90,
+                        buffReceiveRate: 90,
+                        debuffReceiveRate: 90
+                    }
+                }
+                : {
+                    ...baseItem,
+                    name: '無名のスキル',
+                    defaultName: '無名のスキル',
+                    description: '物理攻撃力を3秒間、{0}%アップする。',
+                    effectParamCount: 1,
+                    effectParams: {
+                        0: [15, 17, 20, 24, 30],
+                    }
+                };
+
+            state.items.push(newItem);
+            openTab(newId);
+            requestSaveToLocalStorage();
+        }
+
+        function showSaveIndicator() {
+            const indicator = document.getElementById('saveIndicator');
+            if (!indicator) return;
+
+            indicator.style.visibility = 'visible';
+            if (saveIndicatorTimerId) {
+                clearTimeout(saveIndicatorTimerId);
+            }
+            saveIndicatorTimerId = setTimeout(() => {
+                indicator.style.visibility = 'hidden';
+                saveIndicatorTimerId = null;
+            }, 1000);
+        }
+
+        function requestSaveToLocalStorage() {
+            if (saveTimerId) {
+                clearTimeout(saveTimerId);
+            }
+
+            saveTimerId = setTimeout(() => {
+                saveToLocalStorage();
+                showSaveIndicator();
+                saveTimerId = null;
+            }, 5000);
+        }
+
+        function saveToLocalStorage() {
+            const saveData = {
+                items: state.items,
+                openTabIds: state.openTabIds,
+                activeTabId: state.activeTabId,
+                selectedCategoryId: state.selectedCategoryId
+            };
+            localStorage.setItem('threepane_editor_data', JSON.stringify(saveData));
+        }
+
+        function escapeHtml(str) {
+            if (typeof str !== 'string') return '';
+            return str.replace(/[&'`<>"]/g, match => ({
+                '&': '&amp;',
+                "'": '&#x27;',
+                '`': '&#x60;',
+                '<': '&lt;',
+                '>': '&gt;',
+                '"': '&quot;',
+            }[match]));
+        }
+
+        render();
+    </script>
+</body>
+</html>
