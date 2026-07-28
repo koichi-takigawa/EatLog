@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <title>Project Frayja Data Editor 0.01.00</title>
+    <title>Project Frayja Data Editor 0.01.01</title>
     <style>
         :root {
             --bg-color: #1e1e1e;
@@ -655,7 +655,7 @@
 
     <!-- 一番上のメニューバー -->
     <div id="menuBar">
-        <span class="menu-title">Project Frayja Data Editor 0.01.00</span>
+        <span class="menu-title">Project Frayja Data Editor 0.01.01</span>
         <button class="btn" onclick="createNewData()">新規作成</button>
         <button class="btn" onclick="exportJSON()">JSON保存</button>
         <button class="btn" onclick="document.getElementById('fileInput').click()">JSON読込</button>
@@ -751,11 +751,13 @@
     </div>
 
     <script>
-        const schoolOptions = ['トリニティ', 'ゲヘナ', 'ミレニアム', 'アビドス', '百鬼夜行', '山海経', 'レッドウィンター', 'アリウス', 'ワルキューレ', 'SRT', 'その他'];
+        const schoolOptions = ['アビドス', 'アリウス', 'ゲヘナ', '百鬼夜行', 'ミレニアム', 'レッドウィンター', '山海経', 'ＳＲＴ', 'トリニティ', 'ヴァルキューレ', 'ハイランダー', 'ワイルドハント'];
         const costRankOptions = ['★', '★★', '★★★', '★★★★', '★★★★★'];
         const weaponTypeOptions = ['ノーマル', '爆発', '貫通', '分解', '神秘', '振動'];
         const armorTypeOptions = ['通常装甲', '軽装備', '重装甲', '複合装甲', '特殊装甲', '弾力装甲'];
         const classificationOptions = ['人型', '機械', '飛翔体'];
+        const actionAttackAttributeOptions = ['物理','銃弾','砲弾','投擲','音','視線','噴霧','吸収','ボス耐性','即死攻撃','特攻','割合ダメージ','ＳＰダメージ','回復','蘇生','解除','吹き飛ばし','爆発','貫通','神秘','振動','ノーマル','分解'];
+        const actionUnusableStatusAilmentOptions = ['ＡＧＩアップ','アクションスキルＡＧＩアップ','消費ＳＰ減少','弱体無効','自動蘇生','透明','浮遊','防御','祝福','守護','ＨＰ自動回復','ＳＰ自動回復','ＨＰダメージカット','ＳＰダメージカット','射程強化','最大ＨＰアップ','最大ＳＰアップ','爆発属性弱点','貫通属性弱点','神秘属性弱点','振動属性弱点','ＡＧＩダウン','アクションスキルＡＧＩダウン','消費ＳＰ増加','強化無効','移動封印','行動封印','暴走','スタン','暗闇','混乱','死の宣告','睡眠','衰弱','戦闘不能','沈黙','毒','瀕死','幻惑','帯電','ＳＰ０で戦闘不能','チャージ中','虚脱','最大ＨＰダウン','最大ＳＰダウン','熱傷','凍結','麻痺'];
         const levels = [1, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100];
 
         const categories = [
@@ -1427,6 +1429,31 @@
                     </div>
                 `;
             } else {
+                if (currentItem.categoryId === 'action') {
+                    if (!Array.isArray(currentItem.attackAttributes)) {
+                        currentItem.attackAttributes = [];
+                    }
+                    if (!Array.isArray(currentItem.unusableStatusAilments)) {
+                        currentItem.unusableStatusAilments = [];
+                    }
+                    if (currentItem.actionTriggerTiming !== 'delayed' && currentItem.actionTriggerTiming !== 'immediate') {
+                        currentItem.actionTriggerTiming = 'immediate';
+                    }
+                    if (currentItem.actionDelayAgi === undefined || currentItem.actionDelayAgi === null) {
+                        currentItem.actionDelayAgi = '';
+                    }
+                    if (!currentItem.actionCosts || typeof currentItem.actionCosts !== 'object') {
+                        currentItem.actionCosts = {};
+                    }
+
+                    currentItem.actionCosts.HP = normalizeActionCostEntry(currentItem.actionCosts.HP);
+                    currentItem.actionCosts.SP = normalizeActionCostEntry(currentItem.actionCosts.SP);
+                    currentItem.actionCosts.CT = normalizeActionCostEntry(currentItem.actionCosts.CT);
+
+                    currentItem.attackAttributes = currentItem.attackAttributes.filter(attr => actionAttackAttributeOptions.includes(attr));
+                    currentItem.unusableStatusAilments = currentItem.unusableStatusAilments.filter(status => actionUnusableStatusAilmentOptions.includes(status));
+                }
+
                 if (!currentItem.effectParams || typeof currentItem.effectParams !== 'object') {
                     currentItem.effectParams = {};
                 }
@@ -1451,6 +1478,70 @@
                             </div>
                         `;
                     }).join('');
+
+                const actionAttackAttributeButtons = currentItem.categoryId === 'action'
+                    ? actionAttackAttributeOptions.map(attr => {
+                        const isActive = currentItem.attackAttributes.includes(attr);
+                        return `<div class="radio-btn ${isActive ? 'active' : ''}" onclick="toggleActionAttackAttribute('${attr}')">${attr}</div>`;
+                    }).join('')
+                    : '';
+
+                const actionUnusableStatusAilmentButtons = currentItem.categoryId === 'action'
+                    ? actionUnusableStatusAilmentOptions.map(status => {
+                        const isActive = currentItem.unusableStatusAilments.includes(status);
+                        return `<div class="radio-btn ${isActive ? 'active' : ''}" onclick="toggleActionUnusableStatusAilment('${status}')">${status}</div>`;
+                    }).join('')
+                    : '';
+
+                const actionSkillExtraSettingsHtml = currentItem.categoryId === 'action'
+                    ? `
+                    <div class="form-group form-group--stack">
+                        <div class="form-group-stack-row">
+                            <label>発動タイミング</label>
+                            <div class="radio-button-group">
+                                <div class="radio-btn ${currentItem.actionTriggerTiming === 'immediate' ? 'active' : ''}" onclick="setActionTriggerTiming('immediate')">即時</div>
+                                <div class="radio-btn ${currentItem.actionTriggerTiming === 'delayed' ? 'active' : ''}" onclick="setActionTriggerTiming('delayed')">遅延</div>
+                            </div>
+                        </div>
+                        ${currentItem.actionTriggerTiming === 'delayed' ? `
+                        <div class="form-group-stack-row">
+                            <label>遅延AGI</label>
+                            <input type="number" class="form-control" value="${escapeHtml(String(currentItem.actionDelayAgi))}" oninput="updateActionDelayAgi(this.value)">
+                        </div>
+                        ` : ''}
+                    </div>
+                    <div class="form-group form-group--stack">
+                        <div class="form-group-stack-row">
+                            <label>コストHP</label>
+                            <input type="text" class="form-control" value="${escapeHtml(getActionCostRawValue(currentItem.actionCosts.HP))}" placeholder="例: 20 または 10%" oninput="updateActionCostValue('HP', this.value)">
+                        </div>
+                        <div class="form-group-stack-row">
+                            <label>コストSP</label>
+                            <input type="text" class="form-control" value="${escapeHtml(getActionCostRawValue(currentItem.actionCosts.SP))}" placeholder="例: 15 または 5%" oninput="updateActionCostValue('SP', this.value)">
+                        </div>
+                        <div class="form-group-stack-row">
+                            <label>コストCT</label>
+                            <input type="text" class="form-control" value="${escapeHtml(getActionCostRawValue(currentItem.actionCosts.CT))}" placeholder="例: 30 または 25%" oninput="updateActionCostValue('CT', this.value)">
+                        </div>
+                    </div>
+                    <div class="form-group form-group--stack">
+                        <div class="form-group-stack-row">
+                            <label>攻撃属性（複数選択可）</label>
+                            <div class="radio-button-group">
+                                ${actionAttackAttributeButtons}
+                            </div>
+                        </div>
+                    </div>
+                    <div class="form-group form-group--stack">
+                        <div class="form-group-stack-row">
+                            <label>使用不能状態異常（複数選択可）</label>
+                            <div class="radio-button-group">
+                                ${actionUnusableStatusAilmentButtons}
+                            </div>
+                        </div>
+                    </div>
+                    `
+                    : '';
 
                 container.innerHTML = `
                     <div class="form-group">
@@ -1478,6 +1569,7 @@
                             ${placeholderConfigHtml}
                         </div>
                     </div>
+                    ${actionSkillExtraSettingsHtml}
                 `;
             }
         }
@@ -1997,6 +2089,117 @@
             }
         }
 
+        function toggleActionAttackAttribute(attr) {
+            const currentItem = state.items.find(i => i.id === state.activeTabId);
+            if (!currentItem || currentItem.categoryId !== 'action') return;
+
+            if (!Array.isArray(currentItem.attackAttributes)) {
+                currentItem.attackAttributes = [];
+            }
+
+            const idx = currentItem.attackAttributes.indexOf(attr);
+            if (idx > -1) {
+                currentItem.attackAttributes.splice(idx, 1);
+            } else {
+                currentItem.attackAttributes.push(attr);
+            }
+
+            requestSaveToLocalStorage();
+            renderEditor();
+        }
+
+        function toggleActionUnusableStatusAilment(status) {
+            const currentItem = state.items.find(i => i.id === state.activeTabId);
+            if (!currentItem || currentItem.categoryId !== 'action') return;
+
+            if (!Array.isArray(currentItem.unusableStatusAilments)) {
+                currentItem.unusableStatusAilments = [];
+            }
+
+            const idx = currentItem.unusableStatusAilments.indexOf(status);
+            if (idx > -1) {
+                currentItem.unusableStatusAilments.splice(idx, 1);
+            } else {
+                currentItem.unusableStatusAilments.push(status);
+            }
+
+            requestSaveToLocalStorage();
+            renderEditor();
+        }
+
+        function setActionTriggerTiming(timing) {
+            const currentItem = state.items.find(i => i.id === state.activeTabId);
+            if (!currentItem || currentItem.categoryId !== 'action') return;
+
+            currentItem.actionTriggerTiming = timing === 'delayed' ? 'delayed' : 'immediate';
+            if (currentItem.actionTriggerTiming !== 'delayed') {
+                currentItem.actionDelayAgi = '';
+            }
+
+            requestSaveToLocalStorage();
+            renderEditor();
+        }
+
+        function updateActionDelayAgi(rawValue) {
+            const currentItem = state.items.find(i => i.id === state.activeTabId);
+            if (!currentItem || currentItem.categoryId !== 'action') return;
+
+            currentItem.actionDelayAgi = rawValue;
+            requestSaveToLocalStorage();
+        }
+
+        function parseActionCostInput(rawValue) {
+            const raw = String(rawValue ?? '').trim();
+            if (raw === '') {
+                return { raw: '', isPercent: false, isValid: true, value: null };
+            }
+
+            const isPercent = raw.endsWith('%');
+            const numberText = isPercent ? raw.slice(0, -1).trim() : raw;
+            const numericValue = Number(numberText);
+            const isValid = numberText !== '' && Number.isFinite(numericValue);
+
+            return {
+                raw,
+                isPercent,
+                isValid,
+                value: isValid ? numericValue : null
+            };
+        }
+
+        function normalizeActionCostEntry(entry) {
+            if (entry && typeof entry === 'object' && 'raw' in entry) {
+                return parseActionCostInput(entry.raw);
+            }
+
+            if (typeof entry === 'string') {
+                return parseActionCostInput(entry);
+            }
+
+            if (typeof entry === 'number' && Number.isFinite(entry)) {
+                return parseActionCostInput(String(entry));
+            }
+
+            return parseActionCostInput('');
+        }
+
+        function getActionCostRawValue(entry) {
+            const normalized = normalizeActionCostEntry(entry);
+            return normalized.raw;
+        }
+
+        function updateActionCostValue(costKey, rawValue) {
+            const currentItem = state.items.find(i => i.id === state.activeTabId);
+            if (!currentItem || currentItem.categoryId !== 'action') return;
+
+            if (!currentItem.actionCosts || typeof currentItem.actionCosts !== 'object') {
+                currentItem.actionCosts = {};
+            }
+
+            currentItem.actionCosts[costKey] = parseActionCostInput(rawValue);
+            requestSaveToLocalStorage();
+        }
+
         function applyStatRowValidation(currentItem, statName) {
             const rowValues = currentItem.stats[statName] || {};
             const isAllEmptyInRow = levels.every(lvl => rowValues[lvl] === undefined || rowValues[lvl] === '');
@@ -2112,12 +2315,37 @@
                     ...baseItem,
                     name: '無名のスキル',
                     defaultName: '無名のスキル',
+                    attackAttributes: state.selectedCategoryId === 'action' ? [] : undefined,
+                    unusableStatusAilments: state.selectedCategoryId === 'action' ? [] : undefined,
+                    actionTriggerTiming: state.selectedCategoryId === 'action' ? 'immediate' : undefined,
+                    actionDelayAgi: state.selectedCategoryId === 'action' ? '' : undefined,
+                    actionCosts: state.selectedCategoryId === 'action' ? {
+                        HP: parseActionCostInput(''),
+                        SP: parseActionCostInput(''),
+                        CT: parseActionCostInput('')
+                    } : undefined,
                     description: '物理攻撃力を3秒間、{0}%アップする。',
                     effectParamCount: 1,
                     effectParams: {
                         0: [15, 17, 20, 24, 30],
                     }
                 };
+
+            if (newItem.attackAttributes === undefined) {
+                delete newItem.attackAttributes;
+            }
+            if (newItem.unusableStatusAilments === undefined) {
+                delete newItem.unusableStatusAilments;
+            }
+            if (newItem.actionTriggerTiming === undefined) {
+                delete newItem.actionTriggerTiming;
+            }
+            if (newItem.actionDelayAgi === undefined) {
+                delete newItem.actionDelayAgi;
+            }
+            if (newItem.actionCosts === undefined) {
+                delete newItem.actionCosts;
+            }
 
             state.items.push(newItem);
             openTab(newId);
