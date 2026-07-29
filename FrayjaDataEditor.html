@@ -103,16 +103,80 @@
         /* 2. 左ペイン：カテゴリ */
         #categoryPane {
             width: 200px;
+            transition: width 0.2s ease;
+        }
+        #categoryPane.collapsed {
+            width: 68px;
+        }
+        #categoryPane .pane-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+        }
+        .pane-header-title {
+            min-width: 0;
+        }
+        .pane-toggle-btn {
+            width: 24px;
+            height: 24px;
+            border: 1px solid #555;
+            background-color: #2f2f2f;
+            color: var(--text-muted);
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 13px;
+            line-height: 1;
+            flex-shrink: 0;
+        }
+        .pane-toggle-btn:hover {
+            background-color: #3a3a3a;
+            color: var(--text-color);
+        }
+        #categoryPane.collapsed .pane-header-title {
+            display: none;
         }
         .category-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
             padding: 8px 12px;
             cursor: pointer;
             border-radius: 4px;
             margin-bottom: 2px;
             font-size: 14px;
         }
+
+        .category-icon {
+            width: 24px;
+            height: 24px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--text-muted);
+            flex-shrink: 0;
+            transition: color 0.15s ease;
+        }
+        .category-icon svg {
+            width: 18px;
+            height: 18px;
+            stroke-width: 2;
+        }
+        .category-label {
+            min-width: 0;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        #categoryPane.collapsed .category-label {
+            display: none;
+        }
         .category-item:hover { background-color: rgba(255, 255, 255, 0.05); }
+        .category-item:hover .category-icon { color: var(--text-color); }
         .category-item.active { background-color: var(--accent-color); color: #fff; }
+        .category-item.active .category-icon {
+            color: #fff;
+        }
 
         /* 3. 中央ペイン：アイテム一覧 */
         #itemPane {
@@ -365,6 +429,17 @@
             color: #fff;
             font-weight: 500;
         }
+        .radio-btn.released-active {
+            background-color: var(--released-color);
+            border-color: var(--released-color);
+            color: #1e1e1e;
+            font-weight: 600;
+        }
+        .radio-btn.released-active:hover {
+            background-color: #63d7c0;
+            border-color: #63d7c0;
+            color: #1b1b1b;
+        }
         /* ステータス入力テーブル用スタイル */
         .status-table-container {
             overflow-x: auto;
@@ -548,7 +623,7 @@
             display: flex;
         }
         .modal-card {
-            width: min(520px, 100%);
+            width: min(1040px, calc(100vw - 40px));
             background-color: var(--panel-bg);
             border: 1px solid var(--border-color);
             border-radius: 8px;
@@ -673,7 +748,10 @@
     <div class="main-container">
         <!-- 左ペイン：カテゴリ -->
         <div class="pane" id="categoryPane">
-            <div class="pane-header">Categories</div>
+            <div class="pane-header">
+                <span class="pane-header-title">Categories</span>
+                <button type="button" class="pane-toggle-btn" id="categoryPaneToggleBtn" onclick="toggleCategoryPaneCollapse()" aria-label="カテゴリペインの折りたたみ">◀</button>
+            </div>
             <div class="pane-content" id="categoryList"></div>
         </div>
 
@@ -757,8 +835,15 @@
         const armorTypeOptions = ['通常装甲', '軽装備', '重装甲', '複合装甲', '特殊装甲', '弾力装甲'];
         const classificationOptions = ['人型', '機械', '飛翔体'];
         const actionAttackAttributeOptions = ['物理','銃弾','砲弾','投擲','音','視線','噴霧','吸収','ボス耐性','即死攻撃','特攻','割合ダメージ','ＳＰダメージ','回復','蘇生','解除','吹き飛ばし','爆発','貫通','神秘','振動','ノーマル','分解'];
-        const actionUnusableStatusAilmentOptions = ['ＡＧＩアップ','アクションスキルＡＧＩアップ','消費ＳＰ減少','弱体無効','自動蘇生','透明','浮遊','防御','祝福','守護','ＨＰ自動回復','ＳＰ自動回復','ＨＰダメージカット','ＳＰダメージカット','射程強化','最大ＨＰアップ','最大ＳＰアップ','爆発属性弱点','貫通属性弱点','神秘属性弱点','振動属性弱点','ＡＧＩダウン','アクションスキルＡＧＩダウン','消費ＳＰ増加','強化無効','移動封印','行動封印','暴走','スタン','暗闇','混乱','死の宣告','睡眠','衰弱','戦闘不能','沈黙','毒','瀕死','幻惑','帯電','ＳＰ０で戦闘不能','チャージ中','虚脱','最大ＨＰダウン','最大ＳＰダウン','熱傷','凍結','麻痺'];
+        const actionUnusableStatusEffectsOptions = ['ＡＧＩアップ','アクションスキルＡＧＩアップ','消費ＳＰ減少','弱体無効','自動蘇生','透明','浮遊','防御','祝福','守護','ＨＰ自動回復','ＳＰ自動回復','ＨＰダメージカット','ＳＰダメージカット','射程強化','最大ＨＰアップ','最大ＳＰアップ','爆発属性弱点','貫通属性弱点','神秘属性弱点','振動属性弱点','ＡＧＩダウン','アクションスキルＡＧＩダウン','消費ＳＰ増加','強化無効','移動封印','行動封印','暴走','スタン','暗闇','混乱','死の宣告','睡眠','衰弱','戦闘不能','沈黙','毒','瀕死','幻惑','帯電','ＳＰ０で戦闘不能','チャージ中','虚脱','最大ＨＰダウン','最大ＳＰダウン','熱傷','凍結','麻痺'];
         const levels = [1, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100];
+        const categoryIcons = {
+            unit: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 21a6 6 0 0 0-12 0"/><circle cx="12" cy="10" r="4"/></svg>`,
+            action: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="14.5 17.5 3 6 3 3 6 3 17.5 14.5"/><line x1="13" y1="19" x2="19" y2="13"/><line x1="16" y1="16" x2="20" y2="20"/><line x1="19" y1="21" x2="21" y2="19"/><polyline points="10 14 5 20 4 20 4 19 10 13"/></svg>`,
+            reaction: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 14L4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 5.5 5.5v0a5.5 5.5 0 0 1-5.5 5.5H11"/></svg>`,
+            support: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.85.83 6.72 2.24"/><polyline points="21 3 21 9 15 9"/></svg>`,
+            move: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="5 9 2 12 5 15"/><polyline points="9 5 12 2 15 5"/><polyline points="15 19 12 22 9 19"/><polyline points="19 9 22 12 19 15"/><line x1="2" y1="12" x2="22" y2="12"/><line x1="12" y1="2" x2="12" y2="22"/></svg>`
+        };
 
         const categories = [
             { id: 'unit', name: 'ユニット' },
@@ -810,7 +895,8 @@
                     }
                 ],
                 openTabIds: ['1'],
-                activeTabId: '1'
+                activeTabId: '1',
+                isCategoryPaneCollapsed: false
             };
         }
 
@@ -848,6 +934,9 @@
                     if (parsed.selectedCategoryId && categories.some(c => c.id === parsed.selectedCategoryId)) {
                         state.selectedCategoryId = parsed.selectedCategoryId;
                     }
+                    if (typeof parsed.isCategoryPaneCollapsed === 'boolean') {
+                        state.isCategoryPaneCollapsed = parsed.isCategoryPaneCollapsed;
+                    }
                 }
             } catch(e) {}
         }
@@ -861,17 +950,38 @@
 
         function renderCategories() {
             const container = document.getElementById('categoryList');
+            const pane = document.getElementById('categoryPane');
+            const toggleBtn = document.getElementById('categoryPaneToggleBtn');
+
+            if (pane) {
+                pane.classList.toggle('collapsed', Boolean(state.isCategoryPaneCollapsed));
+            }
+            if (toggleBtn) {
+                const isCollapsed = Boolean(state.isCategoryPaneCollapsed);
+                toggleBtn.textContent = isCollapsed ? '▶' : '◀';
+                toggleBtn.title = isCollapsed ? 'カテゴリペインを展開' : 'カテゴリペインを折りたたむ';
+                toggleBtn.setAttribute('aria-label', isCollapsed ? 'カテゴリペインを展開' : 'カテゴリペインを折りたたむ');
+            }
+
             container.innerHTML = '';
             categories.forEach(cat => {
                 const div = document.createElement('div');
                 div.className = `category-item ${cat.id === state.selectedCategoryId ? 'active' : ''}`;
-                div.textContent = cat.name;
+                div.title = cat.name;
+                const iconHtml = categoryIcons[cat.id] || escapeHtml('?');
+                div.innerHTML = `<span class="category-icon">${iconHtml}</span><span class="category-label">${escapeHtml(cat.name)}</span>`;
                 div.onclick = () => {
                     state.selectedCategoryId = cat.id;
                     render();
                 };
                 container.appendChild(div);
             });
+        }
+
+        function toggleCategoryPaneCollapse() {
+            state.isCategoryPaneCollapsed = !Boolean(state.isCategoryPaneCollapsed);
+            renderCategories();
+            requestSaveToLocalStorage();
         }
 
         function renderItems() {
@@ -1327,17 +1437,19 @@
                 }).join('');
 
                 container.innerHTML = `
-                    <div class="form-group">
-                        <label class="checkbox-label">
-                            <input type="checkbox" ${currentItem.isReleased ? 'checked' : ''} onchange="updateCurrentItem('isReleased', this.checked)">
-                            リリース可能
-                        </label>
-                    </div>
-                    <div class="form-group">
-                        <label class="checkbox-label">
-                            <input type="checkbox" ${currentItem.showInUnitList !== false ? 'checked' : ''} onchange="updateCurrentItem('showInUnitList', this.checked)">
-                            ユニット情報リストに表示する
-                        </label>
+                    <div class="form-group form-group--stack">
+                        <div class="form-group-stack-row">
+                            <label>リリース可能</label>
+                            <div class="radio-button-group">
+                                <div class="radio-btn ${currentItem.isReleased ? 'released-active' : ''}" onclick="updateCurrentItem('isReleased', !this.classList.contains('released-active'))">リリース可能</div>
+                            </div>
+                        </div>
+                        <div class="form-group-stack-row">
+                            <label>リストに表示する</label>
+                            <div class="radio-button-group">
+                                <div class="radio-btn ${currentItem.showInUnitList !== false ? 'active' : ''}" onclick="updateCurrentItem('showInUnitList', !this.classList.contains('active'))">表示する</div>
+                            </div>
+                        </div>
                     </div>
                     <div class="form-group">
                         <label>名前（ツール用）</label>
@@ -1438,8 +1550,8 @@
                     if (!Array.isArray(currentItem.attackAttributes)) {
                         currentItem.attackAttributes = [];
                     }
-                    if (!Array.isArray(currentItem.unusableStatusAilments)) {
-                        currentItem.unusableStatusAilments = [];
+                    if (!Array.isArray(currentItem.unusableStatusEffects)) {
+                        currentItem.unusableStatusEffects = [];
                     }
                     if (currentItem.actionTriggerTiming !== 'delayed' && currentItem.actionTriggerTiming !== 'immediate') {
                         currentItem.actionTriggerTiming = 'immediate';
@@ -1456,7 +1568,7 @@
                     currentItem.actionCosts.CT = normalizeActionCostEntry(currentItem.actionCosts.CT);
 
                     currentItem.attackAttributes = currentItem.attackAttributes.filter(attr => actionAttackAttributeOptions.includes(attr));
-                    currentItem.unusableStatusAilments = currentItem.unusableStatusAilments.filter(status => actionUnusableStatusAilmentOptions.includes(status));
+                    currentItem.unusableStatusEffects = currentItem.unusableStatusEffects.filter(status => actionUnusableStatusEffectsOptions.includes(status));
                 }
 
                 if (!currentItem.effectParams || typeof currentItem.effectParams !== 'object') {
@@ -1491,11 +1603,40 @@
                     }).join('')
                     : '';
 
-                const actionUnusableStatusAilmentButtons = currentItem.categoryId === 'action'
-                    ? actionUnusableStatusAilmentOptions.map(status => {
-                        const isActive = currentItem.unusableStatusAilments.includes(status);
-                        return `<div class="radio-btn ${isActive ? 'active' : ''}" onclick="toggleActionUnusableStatusAilment('${status}')">${status}</div>`;
+                const actionUnusableStatusEffectsButtons = currentItem.categoryId === 'action'
+                    ? actionUnusableStatusEffectsOptions.map(status => {
+                        const isActive = currentItem.unusableStatusEffects.includes(status);
+                        return `<div class="radio-btn ${isActive ? 'active' : ''}" onclick="toggleActionUnusableStatusEffect('${status}')">${status}</div>`;
                     }).join('')
+                    : '';
+
+                const supportTriggerStatusEffectsButtons = currentItem.categoryId === 'support'
+                    ? actionUnusableStatusEffectsOptions.map(status => {
+                        const isActive = Array.isArray(currentItem.triggerStatusEffects) && currentItem.triggerStatusEffects.includes(status);
+                        return `<div class="radio-btn ${isActive ? 'active' : ''}" onclick="toggleSupportTriggerStatusEffect('${status}')">${status}</div>`;
+                    }).join('')
+                    : '';
+
+                const supportTriggerStatusEffectsSectionHtml = currentItem.categoryId === 'support'
+                    ? (() => {
+                        const hasTriggerStatusEffects = Array.isArray(currentItem.triggerStatusEffects);
+                        return `
+                        <div class="form-group form-group--stack">
+                            <div class="form-group-stack-row">
+                                <label>有効化される状態異常（複数選択可）</label>
+                                <div>
+                                    ${hasTriggerStatusEffects
+                                        ? `<div class="radio-button-group">
+                                            ${supportTriggerStatusEffectsButtons}
+                                        </div>
+                                        <button type="button" class="btn btn-secondary" style="margin-top: 10px;" onclick="clearSupportTriggerStatusEffects()">削除</button>`
+                                        : `<button type="button" class="btn" onclick="initSupportTriggerStatusEffects()">＋ 追加</button>`
+                                    }
+                                </div>
+                            </div>
+                        </div>
+                        `;
+                    })()
                     : '';
 
                 const actionSkillExtraSettingsHtml = currentItem.categoryId === 'action'
@@ -1541,7 +1682,7 @@
                         <div class="form-group-stack-row">
                             <label>使用不能状態異常（複数選択可）</label>
                             <div class="radio-button-group">
-                                ${actionUnusableStatusAilmentButtons}
+                                ${actionUnusableStatusEffectsButtons}
                             </div>
                         </div>
                     </div>
@@ -1550,10 +1691,10 @@
 
                 container.innerHTML = `
                     <div class="form-group">
-                        <label class="checkbox-label">
-                            <input type="checkbox" ${currentItem.isReleased ? 'checked' : ''} onchange="updateCurrentItem('isReleased', this.checked)">
-                            リリース可能
-                        </label>
+                        <label>リリース可能</label>
+                        <div class="radio-button-group">
+                            <div class="radio-btn ${currentItem.isReleased ? 'released-active' : ''}" onclick="updateCurrentItem('isReleased', !this.classList.contains('released-active'))">リリース可能</div>
+                        </div>
                     </div>
                     <div class="form-group">
                         <label>スキル名（ツール用）</label>
@@ -1575,8 +1716,46 @@
                         </div>
                     </div>
                     ${actionSkillExtraSettingsHtml}
+                    ${supportTriggerStatusEffectsSectionHtml}
                 `;
             }
+        }
+
+        function initSupportTriggerStatusEffects() {
+            const currentItem = state.items.find(i => i.id === state.activeTabId);
+            if (!currentItem || currentItem.categoryId !== 'support') return;
+
+            currentItem.triggerStatusEffects = [];
+            requestSaveToLocalStorage();
+            renderEditor();
+        }
+
+        function toggleSupportTriggerStatusEffect(status) {
+            const currentItem = state.items.find(i => i.id === state.activeTabId);
+            if (!currentItem || currentItem.categoryId !== 'support') return;
+
+            if (!Array.isArray(currentItem.triggerStatusEffects)) {
+                currentItem.triggerStatusEffects = [];
+            }
+
+            const idx = currentItem.triggerStatusEffects.indexOf(status);
+            if (idx > -1) {
+                currentItem.triggerStatusEffects.splice(idx, 1);
+            } else {
+                currentItem.triggerStatusEffects.push(status);
+            }
+
+            requestSaveToLocalStorage();
+            renderEditor();
+        }
+
+        function clearSupportTriggerStatusEffects() {
+            const currentItem = state.items.find(i => i.id === state.activeTabId);
+            if (!currentItem || currentItem.categoryId !== 'support') return;
+
+            currentItem.triggerStatusEffects = null;
+            requestSaveToLocalStorage();
+            renderEditor();
         }
 
         function openTab(id) {
@@ -1769,6 +1948,11 @@
                 if (key === 'name' || key === 'fullName' || key === 'isReleased') {
                     renderItems();
                     renderTabs();
+                    if (key === 'isReleased') {
+                        renderEditor();
+                    }
+                } else if (key === 'showInUnitList') {
+                    renderEditor();
                 } else if (
                     currentItem.categoryId === 'unit' &&
                     (key === 'costRank' || key === 'weaponType' || key === 'armorType')
@@ -1831,8 +2015,8 @@
             const modalTitle = document.getElementById('normalAttackModalTitle');
 
             const actionSkills = state.items.filter(item => item.categoryId === 'action');
-            const optionsHtml = ['<option value="">未選択</option>']
-                .concat(actionSkills.map(skill => `<option value="${skill.id}">${escapeHtml(skill.name || '無題')}</option>`))
+            const optionsHtml = actionSkills
+                .map(skill => `<option value="${skill.id}">${escapeHtml(skill.name || '無題')}</option>`)
                 .join('');
 
             actionSelect.innerHTML = optionsHtml;
@@ -1842,11 +2026,19 @@
                 if (!entry) return;
 
                 actionSelect.value = entry.actionSkillId || '';
-                displayNameInput.value = entry.displayName || '';
+                if (actionSelect.value !== entry.actionSkillId && actionSelect.options.length > 0) {
+                    actionSelect.selectedIndex = 0;
+                }
+                const selectedActionId = actionSelect.value;
+                displayNameInput.value = entry.displayName || getActionSkillDefaultDisplayNameById(selectedActionId);
                 modalTitle.textContent = 'そのほかのアクションスキル設定';
             } else {
                 actionSelect.value = currentItem.normalAttackActionSkillId || '';
-                displayNameInput.value = currentItem.normalAttackDisplayName || '';
+                if (!currentItem.normalAttackActionSkillId && actionSelect.options.length > 0) {
+                    actionSelect.selectedIndex = 0;
+                }
+                const selectedActionId = actionSelect.value;
+                displayNameInput.value = currentItem.normalAttackDisplayName || getActionSkillDefaultDisplayNameById(selectedActionId);
                 modalTitle.textContent = '通常攻撃設定';
             }
 
@@ -1866,6 +2058,12 @@
             const selectedActionId = actionSelect.value;
             const actionSkill = state.items.find(item => item.id === selectedActionId && item.categoryId === 'action');
             displayNameInput.value = actionSkill ? (actionSkill.defaultName || '') : '';
+        }
+
+        function getActionSkillDefaultDisplayNameById(skillId) {
+            const actionSkill = state.items.find(item => item.id === skillId && item.categoryId === 'action');
+            if (!actionSkill) return '';
+            return actionSkill.defaultName || actionSkill.name || '';
         }
 
         function closeNormalAttackModal() {
@@ -1958,11 +2156,15 @@
             const nameInput = document.getElementById('otherActionSkillDisplayNameInput');
             const hintEl = document.getElementById('otherActionSkillDisplayNameHint');
             const registeredIds = new Set(currentItem.otherActionSkills.map(entry => entry.actionSkillId));
+            if (currentItem.normalAttackActionSkillId) {
+                registeredIds.add(currentItem.normalAttackActionSkillId);
+            }
             const actionSkills = state.items.filter(item => item.categoryId === 'action' && !registeredIds.has(item.id));
 
             otherActionSkillsTargetUnitId = currentItem.id;
             otherActionSkillsModalSelection = [];
             nameInput.value = '';
+            nameInput.placeholder = '例: サブスキル名';
 
             if (actionSkills.length === 0) {
                 listEl.innerHTML = '<div class="sub-action-skill-empty">追加可能なアクションスキルがありません</div>';
@@ -1995,16 +2197,23 @@
             if (!nameInput || !hintEl) return;
 
             if (selectedIds.length === 1) {
+                nameInput.value = getActionSkillDefaultDisplayNameById(selectedIds[0]);
                 nameInput.disabled = false;
                 hintEl.textContent = 'このユニットで使うスキル名を指定できます（未入力ならデフォルト名）。';
             } else if (selectedIds.length > 1) {
                 nameInput.value = '';
                 nameInput.disabled = true;
+                nameInput.placeholder = '自動設定';
                 hintEl.textContent = '複数選択時はデフォルトの名前が使用されます。';
             } else {
                 nameInput.value = '';
                 nameInput.disabled = true;
+                nameInput.placeholder = '例: サブスキル名';
                 hintEl.textContent = '1つ選択すると、このユニットで使うスキル名を入力できます。';
+            }
+
+            if (selectedIds.length === 1) {
+                nameInput.placeholder = '例: サブスキル名';
             }
         }
 
@@ -2113,19 +2322,19 @@
             renderEditor();
         }
 
-        function toggleActionUnusableStatusAilment(status) {
+        function toggleActionUnusableStatusEffect(status) {
             const currentItem = state.items.find(i => i.id === state.activeTabId);
             if (!currentItem || currentItem.categoryId !== 'action') return;
 
-            if (!Array.isArray(currentItem.unusableStatusAilments)) {
-                currentItem.unusableStatusAilments = [];
+            if (!Array.isArray(currentItem.unusableStatusEffects)) {
+                currentItem.unusableStatusEffects = [];
             }
 
-            const idx = currentItem.unusableStatusAilments.indexOf(status);
+            const idx = currentItem.unusableStatusEffects.indexOf(status);
             if (idx > -1) {
-                currentItem.unusableStatusAilments.splice(idx, 1);
+                currentItem.unusableStatusEffects.splice(idx, 1);
             } else {
-                currentItem.unusableStatusAilments.push(status);
+                currentItem.unusableStatusEffects.push(status);
             }
 
             requestSaveToLocalStorage();
@@ -2322,7 +2531,7 @@
                     name: '無名のスキル',
                     defaultName: '無名のスキル',
                     attackAttributes: state.selectedCategoryId === 'action' ? [] : undefined,
-                    unusableStatusAilments: state.selectedCategoryId === 'action' ? [] : undefined,
+                    unusableStatusEffects: state.selectedCategoryId === 'action' ? [] : undefined,
                     actionTriggerTiming: state.selectedCategoryId === 'action' ? 'immediate' : undefined,
                     actionDelayAgi: state.selectedCategoryId === 'action' ? '' : undefined,
                     actionCosts: state.selectedCategoryId === 'action' ? {
@@ -2330,6 +2539,7 @@
                         SP: parseActionCostInput(''),
                         CT: parseActionCostInput('')
                     } : undefined,
+                    triggerStatusEffects: state.selectedCategoryId === 'support' ? null : undefined,
                     description: '物理攻撃力を3秒間、{0}%アップする。',
                     effectParamCount: 1,
                     effectParams: {
@@ -2340,8 +2550,8 @@
             if (newItem.attackAttributes === undefined) {
                 delete newItem.attackAttributes;
             }
-            if (newItem.unusableStatusAilments === undefined) {
-                delete newItem.unusableStatusAilments;
+            if (newItem.unusableStatusEffects === undefined) {
+                delete newItem.unusableStatusEffects;
             }
             if (newItem.actionTriggerTiming === undefined) {
                 delete newItem.actionTriggerTiming;
@@ -2351,6 +2561,9 @@
             }
             if (newItem.actionCosts === undefined) {
                 delete newItem.actionCosts;
+            }
+            if (newItem.triggerStatusEffects === undefined) {
+                delete newItem.triggerStatusEffects;
             }
 
             state.items.push(newItem);
@@ -2389,7 +2602,8 @@
                 items: state.items,
                 openTabIds: state.openTabIds,
                 activeTabId: state.activeTabId,
-                selectedCategoryId: state.selectedCategoryId
+                selectedCategoryId: state.selectedCategoryId,
+                isCategoryPaneCollapsed: Boolean(state.isCategoryPaneCollapsed)
             };
             localStorage.setItem('threepane_editor_data', JSON.stringify(saveData));
         }
