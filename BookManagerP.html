@@ -1,0 +1,1136 @@
+﻿<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>蔵書管理アプリ</title>
+  <style>
+    :root {
+      --bg-color: #121212;
+      --card-bg: #1e1e1e;
+      --surface-color: #2c2c2c;
+      --primary-color: #bb86fc;
+      --primary-variant: #3700b3;
+      --text-color: #e0e0e0;
+      --text-secondary: #a0a0a0;
+      --danger-color: #cf6679;
+      --border-color: #333333;
+      --r18-active-color: #ff4081;
+      
+      --card-width: 120px;
+      --card-height: 170px;
+      --card-gap: 12px;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background-color: var(--bg-color);
+      color: var(--text-color);
+      overflow: hidden;
+      height: 100vh;
+      width: 100vw;
+    }
+
+    /* アプリ枠組み */
+    #app {
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      width: 100vw;
+      position: relative;
+    }
+
+    /* ヘッダー */
+    header {
+      display: flex;
+      flex-direction: column;
+      background-color: var(--card-bg);
+      border-bottom: 1px solid var(--border-color);
+      z-index: 10;
+    }
+
+    .header-main {
+      display: flex;
+      align-items: center;
+      padding: 8px 12px 4px 12px;
+      gap: 8px;
+      height: 48px;
+    }
+
+    .menu-btn {
+      background: none;
+      border: none;
+      color: var(--text-color);
+      font-size: 24px;
+      cursor: pointer;
+      padding: 4px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .search-box {
+      flex: 1;
+      position: relative;
+    }
+
+    .search-box input {
+      width: 100%;
+      padding: 6px 12px;
+      background-color: var(--surface-color);
+      border: 1px solid var(--border-color);
+      border-radius: 20px;
+      color: var(--text-color);
+      font-size: 14px;
+      outline: none;
+    }
+
+    .search-box input:focus {
+      border-color: var(--primary-color);
+    }
+
+    /* 状況フィルター（中央寄せ） */
+    .filter-bar {
+      display: flex;
+      justify-content: center; /* 中央揃え */
+      gap: 6px;
+      padding: 4px 12px 8px 12px;
+      overflow-x: auto;
+      white-space: nowrap;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    .filter-bar::-webkit-scrollbar {
+      display: none;
+    }
+
+    .filter-chip {
+      padding: 3px 10px;
+      background-color: var(--surface-color);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      font-size: 12px;
+      color: var(--text-secondary);
+      cursor: pointer;
+      user-select: none;
+      transition: all 0.2s ease;
+      flex-shrink: 0;
+    }
+
+    .filter-chip.active {
+      background-color: var(--primary-color);
+      color: #000;
+      border-color: var(--primary-color);
+      font-weight: bold;
+    }
+
+    /* バーチャルスクロールエリア */
+    #scroll-container {
+      flex: 1;
+      overflow-y: auto;
+      position: relative;
+      padding: 12px;
+    }
+
+    #virtual-spacer {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      pointer-events: none;
+    }
+
+    /* 本一覧表示エリア（中央寄せ設定） */
+    #grid-viewport {
+      display: grid;
+      gap: var(--card-gap);
+      justify-items: center;
+      position: absolute;
+      left: 0;
+      right: 0;
+      top: 12px;
+      margin: 0 auto;
+      padding-top: 8px;
+    }
+
+    /* 本のカード */
+    .book-card {
+      width: var(--card-width);
+      height: var(--card-height);
+      background-color: var(--card-bg);
+      border-radius: 6px;
+      overflow: hidden;
+      position: relative;
+      cursor: pointer;
+      box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      padding: 8px;
+      border: 1px solid var(--border-color);
+      user-select: none;
+      transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+      will-change: transform;
+    }
+
+    /* マウスホバー時に少し上にずらすアニメーション */
+    .book-card:hover {
+      transform: translateY(-8px);
+      box-shadow: 0 10px 18px rgba(0, 0, 0, 0.6);
+      border-color: var(--primary-color);
+    }
+
+    /* 未所持（新本・古本・デジタル以外）のグレースケール処理 */
+    .book-card.unowned {
+      filter: grayscale(100%);
+      opacity: 0.6;
+    }
+
+    .book-cover {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      position: absolute;
+      top: 0;
+      left: 0;
+    }
+
+    /* パッキング画像切り抜き処理 (120px x 170px, 横5列固定、縦無制限) */
+    .book-cover-sprite {
+      width: 100%;
+      height: 100%;
+      position: absolute;
+      top: 0;
+      left: 0;
+      background-repeat: no-repeat;
+      background-size: 600px auto; /* 120px * 5列 = 600px */
+    }
+
+    .book-title-fallback {
+      font-size: 13px;
+      font-weight: bold;
+      color: var(--text-color);
+      word-break: break-all;
+      display: -webkit-box;
+      -webkit-line-clamp: 6;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+      line-height: 1.3;
+    }
+
+    /* 状況バッジ（右上） */
+    .status-badge {
+      position: absolute;
+      top: 4px;
+      right: 4px;
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      background-color: rgba(0, 0, 0, 0.75);
+      color: #ffffff;
+      font-size: 10px;
+      font-weight: bold;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 2;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+    }
+
+    /* 状況別のカラー指定 */
+    .status-badge.status-新本 { background-color: #00e676; color: #000; }
+    .status-badge.status-古本 { background-color: #29b6f6; color: #000; }
+    .status-badge.status-デジタル { background-color: #ab47bc; color: #fff; }
+    .status-badge.status-購入予定 { background-color: #ffca28; color: #000; }
+    .status-badge.status-情報 { background-color: #8d6e63; color: #fff; }
+    .status-badge.status-売却済 { background-color: #78909c; color: #fff; }
+
+    /* FAB（追加ボタン） */
+    .fab {
+      position: absolute;
+      bottom: 24px;
+      right: 24px;
+      width: 56px;
+      height: 56px;
+      border-radius: 28px;
+      background-color: var(--primary-color);
+      color: #000;
+      font-size: 28px;
+      border: none;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.5);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: bold;
+      z-index: 20;
+    }
+
+    .fab:active {
+      transform: scale(0.95);
+    }
+
+    /* モーダル（詳細・編集画面） */
+    .modal-overlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background-color: rgba(0, 0, 0, 0.7);
+      display: flex;
+      justify-content: center;
+      align-items: flex-end;
+      z-index: 100;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.2s ease;
+    }
+
+    .modal-overlay.active {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    .modal-content {
+      background-color: var(--card-bg);
+      width: 100%;
+      max-width: 600px;
+      max-height: 90vh;
+      border-top-left-radius: 16px;
+      border-top-right-radius: 16px;
+      padding: 20px;
+      overflow-y: auto;
+      box-shadow: 0 -4px 20px rgba(0,0,0,0.5);
+      transform: translateY(100%);
+      transition: transform 0.2s ease;
+    }
+
+    .modal-overlay.active .modal-content {
+      transform: translateY(0);
+    }
+
+    @media (min-width: 600px) {
+      .modal-overlay {
+        align-items: center;
+      }
+      .modal-content {
+        border-radius: 12px;
+      }
+    }
+
+    .modal-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+      border-bottom: 1px solid var(--border-color);
+      padding-bottom: 10px;
+    }
+
+    .modal-header h2 {
+      font-size: 18px;
+    }
+
+    .close-btn {
+      background: none;
+      border: none;
+      color: var(--text-secondary);
+      font-size: 24px;
+      cursor: pointer;
+    }
+
+    .form-group {
+      margin-bottom: 14px;
+    }
+
+    .form-group label {
+      display: block;
+      font-size: 12px;
+      color: var(--text-secondary);
+      margin-bottom: 4px;
+    }
+
+    .form-group input, .form-group select, .form-group textarea {
+      width: 100%;
+      padding: 10px;
+      background-color: var(--surface-color);
+      border: 1px solid var(--border-color);
+      border-radius: 6px;
+      color: var(--text-color);
+      font-size: 14px;
+      outline: none;
+      font-family: inherit;
+    }
+
+    .form-group textarea {
+      resize: vertical;
+      min-height: 160px;
+      line-height: 1.4;
+    }
+
+    .form-group input:focus, .form-group select:focus, .form-group textarea:focus {
+      border-color: var(--primary-color);
+    }
+
+    .form-row {
+      display: flex;
+      gap: 12px;
+    }
+
+    .form-row .form-group {
+      flex: 1;
+    }
+
+    .form-actions {
+      display: flex;
+      gap: 12px;
+      margin-top: 24px;
+    }
+
+    .btn {
+      flex: 1;
+      padding: 12px;
+      border: none;
+      border-radius: 6px;
+      font-weight: bold;
+      cursor: pointer;
+      font-size: 14px;
+    }
+
+    .btn-primary {
+      background-color: var(--primary-color);
+      color: #000;
+    }
+
+    .btn-danger {
+      background-color: var(--danger-color);
+      color: #000;
+    }
+
+    /* サイドメニュー Drawer */
+    .drawer-overlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background-color: rgba(0, 0, 0, 0.5);
+      z-index: 150;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.2s ease;
+    }
+
+    .drawer-overlay.active {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    .drawer {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 280px;
+      height: 100%;
+      background-color: var(--card-bg);
+      z-index: 151;
+      transform: translateX(-100%);
+      transition: transform 0.2s ease;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .drawer-overlay.active .drawer {
+      transform: translateX(0);
+    }
+
+    .drawer h3 {
+      border-bottom: 1px solid var(--border-color);
+      padding-bottom: 10px;
+    }
+
+    .drawer-item {
+      padding: 12px;
+      background-color: var(--surface-color);
+      border-radius: 6px;
+      cursor: pointer;
+      text-align: center;
+      font-weight: bold;
+      border: 1px solid transparent;
+      user-select: none;
+      transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease, box-shadow 0.2s ease;
+    }
+
+    /* R18トグルボタン（非アクティブ：グレー / アクティブ：ピンク） */
+    .r18-btn {
+      background-color: #3a3a3a;
+      color: var(--text-secondary);
+      border: 1px solid var(--border-color);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+    }
+
+    .r18-btn.active {
+      background-color: var(--r18-active-color);
+      color: #ffffff;
+      border-color: #ff80ab;
+      box-shadow: 0 0 10px rgba(255, 64, 129, 0.5);
+    }
+  </style>
+</head>
+<body>
+
+<div id="app">
+  <!-- ヘッダー -->
+  <header>
+    <div class="header-main">
+      <button class="menu-btn" id="menu-toggle">☰</button>
+      <div class="search-box">
+        <input type="text" id="search-input" placeholder="タイトル・作家・タグで検索...">
+      </div>
+    </div>
+    <!-- 状況フィルターバー -->
+    <div class="filter-bar" id="status-filter-bar">
+      <div class="filter-chip active" data-status="ALL">すべて</div>
+      <div class="filter-chip" data-status="新本">新本</div>
+      <div class="filter-chip" data-status="古本">古本</div>
+      <div class="filter-chip" data-status="デジタル">デジタル</div>
+      <div class="filter-chip" data-status="購入予定">購入予定</div>
+      <div class="filter-chip" data-status="情報">情報</div>
+      <div class="filter-chip" data-status="売却済">売却済</div>
+    </div>
+  </header>
+
+  <!-- 本一覧（バーチャルスクロール） -->
+  <div id="scroll-container">
+    <div id="virtual-spacer"></div>
+    <div id="grid-viewport"></div>
+  </div>
+
+  <!-- FABボタン（単体追加） -->
+  <button class="fab" id="add-btn" title="本を追加">＋</button>
+
+  <!-- 単体 編集・詳細モーダル -->
+  <div class="modal-overlay" id="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2 id="modal-title">本の情報</h2>
+        <button class="close-btn" id="close-modal">&times;</button>
+      </div>
+      <form id="book-form">
+        <input type="hidden" id="field-uid">
+        
+        <div class="form-group">
+          <label for="field-title">タイトル *</label>
+          <input type="text" id="field-title" required>
+        </div>
+
+        <div class="form-group">
+          <label for="field-author">作家</label>
+          <input type="text" id="field-author">
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label for="field-status">状況</label>
+            <select id="field-status">
+              <option value="新本">新本</option>
+              <option value="古本">古本</option>
+              <option value="デジタル">デジタル</option>
+              <option value="購入予定">購入予定</option>
+              <option value="情報">情報</option>
+              <option value="売却済">売却済</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="field-isbn">ISBN</label>
+            <input type="text" id="field-isbn">
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="field-cover">表紙画像URL・パス</label>
+          <input type="text" id="field-cover" placeholder="./images/cover.jpg や https://example.com/cover.jpg">
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label for="field-index">表紙Index (パッキング時)</label>
+            <input type="number" id="field-index" min="0" placeholder="0〜">
+          </div>
+          <div class="form-group">
+            <label for="field-tags">タグ (カンマ区切り)</label>
+            <input type="text" id="field-tags" placeholder="SF, 漫画, 完結, R18">
+          </div>
+        </div>
+
+        <div class="form-actions">
+          <button type="button" class="btn btn-danger" id="delete-btn" style="display: none;">削除</button>
+          <button type="submit" class="btn btn-primary">保存</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- 一括追加モーダル -->
+  <div class="modal-overlay" id="bulk-modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2>一括追加</h2>
+        <button class="close-btn" id="close-bulk-modal">&times;</button>
+      </div>
+      <form id="bulk-form">
+        <div class="form-group">
+          <label for="bulk-input">1行につき1冊のデータを「｜」区切りで指定してください。</label>
+          <p style="font-size: 11px; color: var(--text-secondary); margin-bottom: 8px;">
+            書式: タイトル｜作家｜状況｜ISBN｜表紙URL｜表紙Index｜タグ(カンマ区切り)
+          </p>
+          <textarea id="bulk-input" placeholder="例：
+タイトル1｜作家1｜新本｜1234567890｜./cover1.jpg｜0｜SF, 漫画
+タイトル2｜作家2｜古本
+タイトル3｜｜デジタル｜｜https://example.com/cover3.jpg｜｜R18" required></textarea>
+        </div>
+
+        <div class="form-actions">
+          <button type="submit" class="btn btn-primary">一括登録</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ハンバーガーメニュー (Drawer) -->
+  <div class="drawer-overlay" id="drawer-overlay">
+    <div class="drawer">
+      <h3>メニュー</h3>
+      <div class="drawer-item" id="bulk-add-menu-btn">一括追加</div>
+      <div class="drawer-item" id="export-btn">JSON エクスポート</div>
+      <div class="drawer-item" id="import-btn-trigger">JSON インポート</div>
+      <div class="drawer-item r18-btn" id="r18-toggle-btn">🔞 R18</div>
+      <input type="file" id="import-file" accept=".json" style="display:none;">
+    </div>
+  </div>
+</div>
+
+<script>
+  // --- 所持状態判定のユーティリティ ---
+  const OWNED_STATUSES = ['新本', '古本', 'デジタル'];
+  function isOwned(status) {
+    return OWNED_STATUSES.includes(status);
+  }
+
+  // URL・パスの安全な指定用関数
+  function safeUrl(url) {
+    return encodeURI(url);
+  }
+
+  // R18判定処理 (タグ内に r18 / r-18 が含まれるか確認)
+  function isR18Book(book) {
+    if (!book.tags || !Array.isArray(book.tags)) return false;
+    return book.tags.some(tag => {
+      const normalized = tag.trim().toLowerCase();
+      return normalized === 'r18' || normalized === 'r-18';
+    });
+  }
+
+  // 状況ごとの短縮記号取得
+  function getStatusSymbol(status) {
+    switch (status) {
+      case '新本': return '新';
+      case '古本': return '古';
+      case 'デジタル': return 'デ';
+      case '購入予定': return '予';
+      case '情報': return '情';
+      case '売却済': return '売';
+      default: return status ? status.charAt(0) : '・';
+    }
+  }
+
+  // --- アプリケーション状態 ---
+  let books = [];
+  let filteredBooks = [];
+  let isR18Enabled = false; // R18表示フラグ（デフォルト: OFF）
+  let activeStatusFilter = 'ALL';
+
+  // バーチャルスクロール定数・変数
+  const CARD_WIDTH = 120;
+  const CARD_HEIGHT = 170;
+  const CARD_GAP = 12;
+  const MAX_COLUMNS = 10; // 横並びの最大数
+  let columns = 2;
+  let totalRows = 0;
+
+  // DOM Elements
+  const scrollContainer = document.getElementById('scroll-container');
+  const virtualSpacer = document.getElementById('virtual-spacer');
+  const gridViewport = document.getElementById('grid-viewport');
+  const searchInput = document.getElementById('search-input');
+  const statusFilterBar = document.getElementById('status-filter-bar');
+  
+  const modal = document.getElementById('modal');
+  const modalTitle = document.getElementById('modal-title');
+  const bookForm = document.getElementById('book-form');
+  const deleteBtn = document.getElementById('delete-btn');
+
+  const bulkModal = document.getElementById('bulk-modal');
+  const bulkForm = document.getElementById('bulk-form');
+  const bulkInput = document.getElementById('bulk-input');
+  
+  const drawerOverlay = document.getElementById('drawer-overlay');
+  const r18ToggleBtn = document.getElementById('r18-toggle-btn');
+
+  // --- 初期化 & ローカルストレージ管理 ---
+  function init() {
+    loadBooks();
+    setupEventListeners();
+    updateLayoutMetrics();
+    filterBooks();
+  }
+
+  function loadBooks() {
+    const data = localStorage.getItem('my_book_shelf');
+    if (data) {
+      try {
+        const parsed = JSON.parse(data);
+        if (Array.isArray(parsed)) {
+          books = ensureUniqueUids(parsed);
+          saveBooks();
+        } else {
+          books = [];
+        }
+      } catch(e) {
+        books = [];
+      }
+    } else {
+      books = [];
+    }
+  }
+
+  function saveBooks() {
+    localStorage.setItem('my_book_shelf', JSON.stringify(books));
+  }
+
+  // --- UIDの自動補完・調整処理 ---
+  function ensureUniqueUids(importList) {
+    let maxUid = importList.reduce((max, item) => {
+      const u = Number(item.uid);
+      return (Number.isInteger(u) && u > max) ? u : max;
+    }, 0);
+
+    let nextUid = Math.max(maxUid + 1, Date.now());
+
+    return importList.map(item => {
+      const currentUid = Number(item.uid);
+      if (!item.uid || !Number.isInteger(currentUid) || currentUid <= 0) {
+        return { ...item, uid: nextUid++ };
+      }
+      return { ...item, uid: currentUid };
+    });
+  }
+
+  // --- 検索・フィルタリング ---
+  function filterBooks() {
+    const query = searchInput.value.trim().toLowerCase();
+    
+    filteredBooks = books.filter(b => {
+      // R18フィルター（OFF時はR18本を除外）
+      if (!isR18Enabled && isR18Book(b)) {
+        return false;
+      }
+
+      // 状況フィルター
+      if (activeStatusFilter !== 'ALL') {
+        if (b.status !== activeStatusFilter) {
+          return false;
+        }
+      }
+
+      // 検索ワードフィルター
+      if (!query) return true;
+
+      return (
+        (b.title && b.title.toLowerCase().includes(query)) ||
+        (b.author && b.author.toLowerCase().includes(query)) ||
+        (b.tags && b.tags.some(t => t.toLowerCase().includes(query)))
+      );
+    });
+
+    renderVirtualScroll(true);
+  }
+
+  // --- バーチャルスクロール & レイアウト設定 ---
+  function updateLayoutMetrics() {
+    const containerWidth = scrollContainer.clientWidth - 24; // パディング分を減算
+    
+    // 1〜10列の間で最適な列数を算出
+    const possibleCols = Math.floor((containerWidth + CARD_GAP) / (CARD_WIDTH + CARD_GAP));
+    columns = Math.min(MAX_COLUMNS, Math.max(1, possibleCols));
+
+    // 列数に合わせてグリッド幅を明示的に指定（中央寄せるため）
+    const gridWidth = (columns * CARD_WIDTH) + ((columns - 1) * CARD_GAP);
+    gridViewport.style.width = `${gridWidth}px`;
+    gridViewport.style.gridTemplateColumns = `repeat(${columns}, ${CARD_WIDTH}px)`;
+  }
+
+  function renderVirtualScroll(forceReset = false) {
+    if (filteredBooks.length === 0) {
+      virtualSpacer.style.height = '0px';
+      gridViewport.innerHTML = '<div style="grid-column: 1/-1; padding: 40px; color: var(--text-secondary); text-align: center;">本が見つかりません</div>';
+      return;
+    }
+
+    totalRows = Math.ceil(filteredBooks.length / columns);
+    const rowHeight = CARD_HEIGHT + CARD_GAP;
+    const totalHeight = totalRows * rowHeight;
+    virtualSpacer.style.height = `${totalHeight}px`;
+
+    const scrollTop = scrollContainer.scrollTop;
+    const viewportHeight = scrollContainer.clientHeight;
+
+    // バッファとして上下に2行分余分にレンダリング
+    const startRow = Math.max(0, Math.floor(scrollTop / rowHeight) - 2);
+    const endRow = Math.min(totalRows, Math.ceil((scrollTop + viewportHeight) / rowHeight) + 2);
+
+    const startIndex = startRow * columns;
+    const endIndex = Math.min(filteredBooks.length, endRow * columns);
+
+    // ビューポート位置の設定
+    gridViewport.style.top = `${startRow * rowHeight + 12}px`;
+
+    // フラグメントでまとめて描画
+    const fragment = document.createDocumentFragment();
+
+    for (let i = startIndex; i < endIndex; i++) {
+      const book = filteredBooks[i];
+      const card = createBookCard(book);
+      fragment.appendChild(card);
+    }
+
+    gridViewport.innerHTML = '';
+    gridViewport.appendChild(fragment);
+  }
+
+  // --- カード要素の生成 ---
+  function createBookCard(book) {
+    const card = document.createElement('div');
+    card.className = `book-card ${!isOwned(book.status) ? 'unowned' : ''}`;
+    card.dataset.uid = book.uid;
+
+    // 画像描画
+    if (book.coverUrl) {
+      const formattedUrl = safeUrl(book.coverUrl);
+
+      if (book.coverIndex !== null && book.coverIndex !== undefined && book.coverIndex >= 0) {
+        // 画像パッキング切り抜き (120x170, 5列固定、行数無制限)
+        const col = book.coverIndex % 5;
+        const row = Math.floor(book.coverIndex / 5);
+        const posX = -(col * CARD_WIDTH);
+        const posY = -(row * CARD_HEIGHT);
+
+        const sprite = document.createElement('div');
+        sprite.className = 'book-cover-sprite';
+        sprite.style.backgroundImage = `url("${formattedUrl}")`;
+        sprite.style.backgroundPosition = `${posX}px ${posY}px`;
+        card.appendChild(sprite);
+      } else {
+        // 通常の単体画像 (相対パス / 絶対パス対応)
+        const img = document.createElement('img');
+        img.className = 'book-cover';
+        img.src = book.coverUrl;
+        img.alt = book.title;
+        img.loading = 'lazy';
+        // エラー時はタイトル表示に切替
+        img.onerror = () => {
+          img.remove();
+          showFallbackTitle(card, book.title);
+        };
+        card.appendChild(img);
+      }
+    } else {
+      showFallbackTitle(card, book.title);
+    }
+
+    // 状況バッジ（右上）を追加
+    const badge = document.createElement('div');
+    const statusText = book.status || '新本';
+    badge.className = `status-badge status-${statusText}`;
+    badge.textContent = getStatusSymbol(statusText);
+    badge.title = `状況: ${statusText}`;
+    card.appendChild(badge);
+
+    card.addEventListener('click', () => openModal(book));
+    return card;
+  }
+
+  function showFallbackTitle(card, title) {
+    const titleDiv = document.createElement('div');
+    titleDiv.className = 'book-title-fallback';
+    titleDiv.textContent = title;
+    card.appendChild(titleDiv);
+  }
+
+  // --- モーダル（情報確認・登録・編集） ---
+  function openModal(book = null) {
+    bookForm.reset();
+    if (book) {
+      // 編集モード
+      modalTitle.textContent = '本の編集';
+      document.getElementById('field-uid').value = book.uid;
+      document.getElementById('field-title').value = book.title || '';
+      document.getElementById('field-author').value = book.author || '';
+      document.getElementById('field-isbn').value = book.isbn || '';
+      document.getElementById('field-cover').value = book.coverUrl || '';
+      document.getElementById('field-index').value = book.coverIndex ?? '';
+      document.getElementById('field-status').value = book.status || '新本';
+      document.getElementById('field-tags').value = book.tags ? book.tags.join(', ') : '';
+      deleteBtn.style.display = 'block';
+    } else {
+      // 新規作成モード
+      modalTitle.textContent = '本の追加';
+      document.getElementById('field-uid').value = '';
+      document.getElementById('field-status').value = '新本';
+      deleteBtn.style.display = 'none';
+    }
+    modal.classList.add('active');
+  }
+
+  function closeModal() {
+    modal.classList.remove('active');
+  }
+
+  function openBulkModal() {
+    bulkForm.reset();
+    bulkModal.classList.add('active');
+  }
+
+  function closeBulkModal() {
+    bulkModal.classList.remove('active');
+  }
+
+  // フォーム保存（単体）
+  bookForm.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const uidVal = document.getElementById('field-uid').value;
+    const title = document.getElementById('field-title').value.trim();
+    const author = document.getElementById('field-author').value.trim();
+    const isbn = document.getElementById('field-isbn').value.trim();
+    const coverUrl = document.getElementById('field-cover').value.trim();
+    const indexVal = document.getElementById('field-index').value;
+    const status = document.getElementById('field-status').value;
+    const tagsVal = document.getElementById('field-tags').value;
+
+    const tags = tagsVal ? tagsVal.split(',').map(t => t.trim()).filter(t => t.length > 0) : [];
+    const coverIndex = indexVal !== '' ? parseInt(indexVal, 10) : null;
+
+    if (uidVal) {
+      // 更新
+      const uid = parseInt(uidVal, 10);
+      const index = books.findIndex(b => b.uid === uid);
+      if (index !== -1) {
+        books[index] = { ...books[index], title, author, isbn, coverUrl, coverIndex, status, tags };
+      }
+    } else {
+      // 新規追加 (UIDは現在の最大値 + 1 またはタイムスタンプ)
+      const maxUid = books.reduce((max, b) => (b.uid > max ? b.uid : max), 0);
+      const newBook = {
+        uid: Math.max(maxUid + 1, Date.now()),
+        title,
+        author,
+        isbn,
+        coverUrl,
+        coverIndex,
+        status,
+        tags
+      };
+      // 先頭に追加
+      books.unshift(newBook);
+    }
+
+    saveBooks();
+    closeModal();
+    filterBooks();
+  });
+
+  // フォーム保存（一括追加）
+  bulkForm.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const text = bulkInput.value;
+    if (!text.trim()) return;
+
+    const lines = text.split('\n');
+    let maxUid = books.reduce((max, b) => (b.uid > max ? b.uid : max), 0);
+    let nextUid = Math.max(maxUid + 1, Date.now());
+
+    const newBooks = [];
+
+    lines.forEach(line => {
+      const trimmed = line.trim();
+      if (!trimmed) return;
+
+      const parts = trimmed.split(/[|｜]/).map(p => p.trim());
+      
+      const title = parts[0] || '';
+      if (!title) return;
+
+      const author = parts[1] || '';
+      const status = parts[2] || '新本';
+      const isbn = parts[3] || '';
+      const coverUrl = parts[4] || '';
+      const indexVal = parts[5];
+      const coverIndex = (indexVal !== undefined && indexVal !== '') ? parseInt(indexVal, 10) : null;
+      const tagsStr = parts[6] || '';
+      const tags = tagsStr ? tagsStr.split(',').map(t => t.trim()).filter(t => t.length > 0) : [];
+
+      newBooks.push({
+        uid: nextUid++,
+        title,
+        author,
+        status,
+        isbn,
+        coverUrl,
+        coverIndex: isNaN(coverIndex) ? null : coverIndex,
+        tags
+      });
+    });
+
+    if (newBooks.length > 0) {
+      books = [...newBooks, ...books];
+      saveBooks();
+      filterBooks();
+      alert(`${newBooks.length}冊の本を追加しました。`);
+    }
+
+    closeBulkModal();
+  });
+
+  // 削除処理
+  deleteBtn.addEventListener('click', () => {
+    const uidVal = document.getElementById('field-uid').value;
+    if (!uidVal) return;
+    
+    if (confirm('この本を削除してもよろしいですか？')) {
+      const uid = parseInt(uidVal, 10);
+      books = books.filter(b => b.uid !== uid);
+      saveBooks();
+      closeModal();
+      filterBooks();
+    }
+  });
+
+  // --- イベントリスナー設定 ---
+  function setupEventListeners() {
+    // スクロール時のバーチャルスクロール更新
+    scrollContainer.addEventListener('scroll', () => renderVirtualScroll());
+
+    // リサイズ時の列数再計算
+    window.addEventListener('resize', () => {
+      updateLayoutMetrics();
+      renderVirtualScroll();
+    });
+
+    // 検索入力
+    searchInput.addEventListener('input', filterBooks);
+
+    // 状況フィルターボタンの切り替えイベント
+    statusFilterBar.addEventListener('click', (e) => {
+      const chip = e.target.closest('.filter-chip');
+      if (!chip) return;
+
+      statusFilterBar.querySelectorAll('.filter-chip').forEach(c => c.classList.remove('active'));
+      chip.classList.add('active');
+
+      activeStatusFilter = chip.dataset.status;
+      filterBooks();
+    });
+
+    // モーダル開閉
+    document.getElementById('add-btn').addEventListener('click', () => openModal());
+    document.getElementById('close-modal').addEventListener('click', closeModal);
+    modal.addEventListener('click', (e) => {
+      if (e.target === modal) closeModal();
+    });
+
+    document.getElementById('close-bulk-modal').addEventListener('click', closeBulkModal);
+    bulkModal.addEventListener('click', (e) => {
+      if (e.target === bulkModal) closeBulkModal();
+    });
+
+    // メニュー開閉
+    const menuBtn = document.getElementById('menu-toggle');
+    menuBtn.addEventListener('click', () => drawerOverlay.classList.add('active'));
+    drawerOverlay.addEventListener('click', (e) => {
+      if (e.target === drawerOverlay) drawerOverlay.classList.remove('active');
+    });
+
+    // ハンバーガーメニュー内「一括追加」ボタンのクリック
+    document.getElementById('bulk-add-menu-btn').addEventListener('click', () => {
+      drawerOverlay.classList.remove('active');
+      openBulkModal();
+    });
+
+    // R18 トグル切り替え
+    r18ToggleBtn.addEventListener('click', () => {
+      isR18Enabled = !isR18Enabled;
+      r18ToggleBtn.classList.toggle('active', isR18Enabled);
+      filterBooks();
+    });
+
+    // JSON エクスポート
+    document.getElementById('export-btn').addEventListener('click', () => {
+      const blob = new Blob([JSON.stringify(books, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `books_backup_${new Date().toISOString().slice(0,10)}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+      drawerOverlay.classList.remove('active');
+    });
+
+    // JSON インポート
+    const importFileInput = document.getElementById('import-file');
+    document.getElementById('import-btn-trigger').addEventListener('click', () => importFileInput.click());
+    importFileInput.addEventListener('change', (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = (evt) => {
+        try {
+          const imported = JSON.parse(evt.target.result);
+          if (Array.isArray(imported)) {
+            // インポート時にUIDが無ければ自動補完
+            books = ensureUniqueUids(imported);
+            saveBooks();
+            filterBooks();
+            alert('インポートが完了しました。');
+          } else {
+            alert('無効なデータ形式です。');
+          }
+        } catch(err) {
+          alert('JSONの読み込みに失敗しました。');
+        }
+      };
+      reader.readAsText(file);
+      drawerOverlay.classList.remove('active');
+      importFileInput.value = '';
+    });
+  }
+
+  // 開始
+  init();
+</script>
+</body>
+</html>
