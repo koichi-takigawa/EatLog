@@ -112,6 +112,9 @@
     }
 
     .filter-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
       padding: 3px 10px;
       background-color: var(--surface-color);
       border: 1px solid var(--border-color);
@@ -124,11 +127,37 @@
       flex-shrink: 0;
     }
 
+    /* 実体のcheckboxは非表示にしてlabelでスタイリング */
+    .filter-chip input[type="checkbox"] {
+      display: none;
+    }
+
+    /* チェックアイコンのシミュレート */
+    .filter-chip::before {
+      content: '';
+      display: inline-block;
+      width: 10px;
+      height: 10px;
+      border: 1px solid var(--text-secondary);
+      border-radius: 2px;
+      transition: all 0.2s ease;
+    }
+
     .filter-chip.active {
       background-color: var(--primary-color);
       color: #000;
       border-color: var(--primary-color);
       font-weight: bold;
+    }
+
+    .filter-chip.active::before {
+      background-color: #000;
+      border-color: #000;
+      content: '✔';
+      color: var(--primary-color);
+      font-size: 8px;
+      line-height: 10px;
+      text-align: center;
     }
 
     /* バーチャルスクロールエリア */
@@ -273,6 +302,7 @@
       justify-content: center;
       font-weight: bold;
       z-index: 20;
+      transition: transform 0.1s ease;
     }
 
     .fab:active {
@@ -505,13 +535,34 @@
     </div>
     <!-- 状況フィルターバー -->
     <div class="filter-bar" id="status-filter-bar">
-      <div class="filter-chip active" data-status="ALL">すべて</div>
-      <div class="filter-chip" data-status="新本">新本</div>
-      <div class="filter-chip" data-status="古本">古本</div>
-      <div class="filter-chip" data-status="デジタル">デジタル</div>
-      <div class="filter-chip" data-status="購入予定">購入予定</div>
-      <div class="filter-chip" data-status="情報">情報</div>
-      <div class="filter-chip" data-status="売却済">売却済</div>
+      <label class="filter-chip active">
+        <input type="checkbox" data-status="ALL" checked>
+        <span>すべて</span>
+      </label>
+      <label class="filter-chip">
+        <input type="checkbox" data-status="新本">
+        <span>新本</span>
+      </label>
+      <label class="filter-chip">
+        <input type="checkbox" data-status="古本">
+        <span>古本</span>
+      </label>
+      <label class="filter-chip">
+        <input type="checkbox" data-status="デジタル">
+        <span>デジタル</span>
+      </label>
+      <label class="filter-chip">
+        <input type="checkbox" data-status="購入予定">
+        <span>購入予定</span>
+      </label>
+      <label class="filter-chip">
+        <input type="checkbox" data-status="情報">
+        <span>情報</span>
+      </label>
+      <label class="filter-chip">
+        <input type="checkbox" data-status="売却済">
+        <span>売却済</span>
+      </label>
     </div>
   </header>
 
@@ -612,6 +663,29 @@
     </div>
   </div>
 
+  <!-- GASからの読み込みモーダル -->
+  <div class="modal-overlay" id="gas-modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2>GASからデータを取得</h2>
+        <button class="close-btn" id="close-gas-modal">&times;</button>
+      </div>
+      <form id="gas-form">
+        <div class="form-group">
+          <label for="gas-url-input">GAS Web App URL (doGet)</label>
+          <input type="url" id="gas-url-input" placeholder="https://script.google.com/macros/s/.../exec" required>
+        </div>
+        <p style="font-size: 12px; color: var(--text-secondary); margin-bottom: 12px; line-height: 1.4;">
+          ※GAS側でJSON形式（配列）を返すウェブアプリとしてデプロイされている必要があります。<br>
+          ※URLはローカルストレージに自動保存されます。
+        </p>
+        <div class="form-actions">
+          <button type="submit" class="btn btn-primary" id="gas-fetch-btn">取得して確認</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
   <!-- ハンバーガーメニュー (Drawer) -->
   <div class="drawer-overlay" id="drawer-overlay">
     <div class="drawer">
@@ -619,6 +693,7 @@
       <div class="drawer-item" id="bulk-add-menu-btn">一括追加</div>
       <div class="drawer-item" id="export-btn">JSON エクスポート</div>
       <div class="drawer-item" id="import-btn-trigger">JSON インポート</div>
+      <div class="drawer-item" id="gas-menu-btn">GASから読み込み</div>
       <div class="drawer-item r18-btn" id="r18-toggle-btn">🔞 R18</div>
       <input type="file" id="import-file" accept=".json" style="display:none;">
     </div>
@@ -662,8 +737,12 @@
   // --- アプリケーション状態 ---
   let books = [];
   let filteredBooks = [];
-  let isR18Enabled = false; // R18表示フラグ（デフォルト: OFF）
-  let activeStatusFilter = 'ALL';
+
+  // R18表示フラグ（デフォルト: OFF）
+  let isR18Enabled = false;
+
+  // 複数選択用の状況フィルターリスト ('ALL'が含まれる場合はすべて表示)
+  let selectedStatuses = ['ALL'];
 
   // バーチャルスクロール定数・変数
   const CARD_WIDTH = 120;
@@ -688,6 +767,11 @@
   const bulkModal = document.getElementById('bulk-modal');
   const bulkForm = document.getElementById('bulk-form');
   const bulkInput = document.getElementById('bulk-input');
+
+  const gasModal = document.getElementById('gas-modal');
+  const gasForm = document.getElementById('gas-form');
+  const gasUrlInput = document.getElementById('gas-url-input');
+  const gasFetchBtn = document.getElementById('gas-fetch-btn');
   
   const drawerOverlay = document.getElementById('drawer-overlay');
   const r18ToggleBtn = document.getElementById('r18-toggle-btn');
@@ -751,9 +835,10 @@
         return false;
       }
 
-      // 状況フィルター
-      if (activeStatusFilter !== 'ALL') {
-        if (b.status !== activeStatusFilter) {
+      // 状況複数選択フィルター
+      const isAllSelected = selectedStatuses.includes('ALL');
+      if (!isAllSelected) {
+        if (!selectedStatuses.includes(b.status)) {
           return false;
         }
       }
@@ -775,7 +860,7 @@
   function updateLayoutMetrics() {
     const containerWidth = scrollContainer.clientWidth - 24; // パディング分を減算
     
-    // 1〜10列の間で最適な列数を算出
+    // 1～10列の間で最適な列数を算出
     const possibleCols = Math.floor((containerWidth + CARD_GAP) / (CARD_WIDTH + CARD_GAP));
     columns = Math.min(MAX_COLUMNS, Math.max(1, possibleCols));
 
@@ -920,6 +1005,16 @@
     bulkModal.classList.remove('active');
   }
 
+  function openGasModal() {
+    const savedUrl = localStorage.getItem('gas_fetch_url') || '';
+    gasUrlInput.value = savedUrl;
+    gasModal.classList.add('active');
+  }
+
+  function closeGasModal() {
+    gasModal.classList.remove('active');
+  }
+
   // フォーム保存（単体）
   bookForm.addEventListener('submit', (e) => {
     e.preventDefault();
@@ -1016,6 +1111,52 @@
     closeBulkModal();
   });
 
+  // フォーム処理（GASデータ取得）
+  gasForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const url = gasUrlInput.value.trim();
+    if (!url) return;
+
+    // URLをローカルストレージに保存
+    localStorage.setItem('gas_fetch_url', url);
+
+    gasFetchBtn.disabled = true;
+    gasFetchBtn.textContent = '取得中...';
+
+    try {
+      const response = await fetch(url, { method: 'GET', redirect: 'follow' });
+      if (!response.ok) {
+        throw new Error(`HTTPエラー! status: ${response.status}`);
+      }
+      const fetchedData = await response.json();
+
+      if (!Array.isArray(fetchedData)) {
+        throw new Error('取得したデータが配列ではありません。GAS側のレスポンス形式を確認してください。');
+      }
+
+      // サンプル表示用メッセージ生成
+      const sampleTitles = fetchedData
+        .slice(0, 3)
+        .map(b => `・ ${b.title || '(無題)'}`)
+        .join('\n');
+      
+      const confirmMessage = `GASから ${fetchedData.length} 件のデータを取得しました。\n\n現在の蔵書データ (${books.length}件) をすべて上書きしますか？\n\n【取得サンプル】\n${sampleTitles}${fetchedData.length > 3 ? '\n...' : ''}`;
+
+      if (confirm(confirmMessage)) {
+        books = ensureUniqueUids(fetchedData);
+        saveBooks();
+        filterBooks();
+        closeGasModal();
+        alert('データを上書き更新しました。');
+      }
+    } catch (err) {
+      alert(`GASからの取得に失敗しました:\n${err.message}`);
+    } finally {
+      gasFetchBtn.disabled = false;
+      gasFetchBtn.textContent = '取得して確認';
+    }
+  });
+
   // 削除処理
   deleteBtn.addEventListener('click', () => {
     const uidVal = document.getElementById('field-uid').value;
@@ -1044,15 +1185,51 @@
     // 検索入力
     searchInput.addEventListener('input', filterBooks);
 
-    // 状況フィルターボタンの切り替えイベント
-    statusFilterBar.addEventListener('click', (e) => {
-      const chip = e.target.closest('.filter-chip');
-      if (!chip) return;
+    // 状況フィルターの複数選択・チェックボックス連動ロジック
+    statusFilterBar.addEventListener('change', (e) => {
+      const targetCheckbox = e.target;
+      if (!targetCheckbox || targetCheckbox.type !== 'checkbox') return;
 
-      statusFilterBar.querySelectorAll('.filter-chip').forEach(c => c.classList.remove('active'));
-      chip.classList.add('active');
+      const clickedStatus = targetCheckbox.dataset.status;
+      const allCheckboxes = statusFilterBar.querySelectorAll('input[type="checkbox"]');
 
-      activeStatusFilter = chip.dataset.status;
+      if (clickedStatus === 'ALL') {
+        // 「すべて」をクリックした場合：他のチェックを全解除し、「すべて」のみを保持
+        allCheckboxes.forEach(cb => {
+          const isAll = cb.dataset.status === 'ALL';
+          cb.checked = isAll;
+          cb.closest('.filter-chip').classList.toggle('active', isAll);
+        });
+        selectedStatuses = ['ALL'];
+      } else {
+        // 個別項目をクリックした場合：「すべて」を解除
+        const allCb = statusFilterBar.querySelector('input[data-status="ALL"]');
+        if (allCb) {
+          allCb.checked = false;
+          allCb.closest('.filter-chip').classList.remove('active');
+        }
+
+        // 親のチップ要素の表示クラスを更新
+        targetCheckbox.closest('.filter-chip').classList.toggle('active', targetCheckbox.checked);
+
+        // 選択された状況のリストを構築
+        selectedStatuses = [];
+        allCheckboxes.forEach(cb => {
+          if (cb.dataset.status !== 'ALL' && cb.checked) {
+            selectedStatuses.push(cb.dataset.status);
+          }
+        });
+
+        // 何も選択されていない場合は「すべて」に復帰
+        if (selectedStatuses.length === 0) {
+          selectedStatuses = ['ALL'];
+          if (allCb) {
+            allCb.checked = true;
+            allCb.closest('.filter-chip').classList.add('active');
+          }
+        }
+      }
+
       filterBooks();
     });
 
@@ -1068,6 +1245,11 @@
       if (e.target === bulkModal) closeBulkModal();
     });
 
+    document.getElementById('close-gas-modal').addEventListener('click', closeGasModal);
+    gasModal.addEventListener('click', (e) => {
+      if (e.target === gasModal) closeGasModal();
+    });
+
     // メニュー開閉
     const menuBtn = document.getElementById('menu-toggle');
     menuBtn.addEventListener('click', () => drawerOverlay.classList.add('active'));
@@ -1079,6 +1261,12 @@
     document.getElementById('bulk-add-menu-btn').addEventListener('click', () => {
       drawerOverlay.classList.remove('active');
       openBulkModal();
+    });
+
+    // ハンバーガーメニュー内「GASから読み込み」ボタンのクリック
+    document.getElementById('gas-menu-btn').addEventListener('click', () => {
+      drawerOverlay.classList.remove('active');
+      openGasModal();
     });
 
     // R18 トグル切り替え
